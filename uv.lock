@@ -1120,6 +1120,7 @@ dependencies = [
     { name = "httpx" },
     { name = "kubernetes" },
     { name = "mcp" },
+    { name = "pluggy" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
@@ -1138,6 +1139,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "kubernetes", specifier = ">=28.1.0" },
     { name = "mcp", specifier = ">=1.0.0" },
+    { name = "pluggy", specifier = ">=1.4.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pydantic-settings", specifier = ">=2.0.0" },
 ]

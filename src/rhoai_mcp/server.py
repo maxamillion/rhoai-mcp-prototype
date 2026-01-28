@@ -1,39 +1,32 @@
-"""FastMCP server definition for RHOAI with domain modules and plugin discovery."""
+"""FastMCP server definition for RHOAI with pluggy-based plugin system."""
 
 from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
-from importlib.metadata import entry_points
 from typing import TYPE_CHECKING, Any
 
 from mcp.server.fastmcp import FastMCP
 
 from rhoai_mcp.clients.base import K8sClient
 from rhoai_mcp.config import RHOAIConfig, get_config
+from rhoai_mcp.plugin_manager import PluginManager
 
 if TYPE_CHECKING:
-    from rhoai_mcp.domains.registry import DomainModule
-    from rhoai_mcp.plugin import RHOAIMCPPlugin
+    pass
 
 logger = logging.getLogger(__name__)
 
-# Entry point group name for external plugin discovery
-PLUGIN_ENTRY_POINT_GROUP = "rhoai_mcp.plugins"
-
 
 class RHOAIServer:
-    """RHOAI MCP Server with domain modules and external plugin discovery."""
+    """RHOAI MCP Server with pluggy-based plugin system."""
 
     def __init__(self, config: RHOAIConfig | None = None) -> None:
         self._config = config or get_config()
         self._k8s_client: K8sClient | None = None
         self._mcp: FastMCP | None = None
-        self._domains: list[DomainModule] = []
-        self._plugins: dict[str, RHOAIMCPPlugin] = {}
-        self._healthy_plugins: dict[str, RHOAIMCPPlugin] = {}
-        self._healthy_domains: list[str] = []
+        self._plugin_manager: PluginManager | None = None
 
     @property
     def config(self) -> RHOAIConfig:
@@ -63,100 +56,29 @@ class RHOAIServer:
         return self._mcp
 
     @property
-    def plugins(self) -> dict[str, RHOAIMCPPlugin]:
-        """Get all discovered external plugins."""
-        return self._plugins
+    def plugin_manager(self) -> PluginManager:
+        """Get the plugin manager.
+
+        Raises:
+            RuntimeError: If server is not initialized.
+        """
+        if self._plugin_manager is None:
+            raise RuntimeError("Server not initialized.")
+        return self._plugin_manager
 
     @property
-    def healthy_plugins(self) -> dict[str, RHOAIMCPPlugin]:
-        """Get external plugins that passed health checks."""
-        return self._healthy_plugins
+    def plugins(self) -> dict[str, Any]:
+        """Get all registered plugins."""
+        if self._plugin_manager is None:
+            return {}
+        return self._plugin_manager.registered_plugins
 
-    def _discover_plugins(self) -> dict[str, RHOAIMCPPlugin]:
-        """Discover and load external plugins from entry points.
-
-        Note: Core domains are registered directly, not via entry points.
-        This method only discovers external plugins like 'training'.
-
-        Returns:
-            Dictionary mapping plugin names to plugin instances.
-        """
-        plugins: dict[str, RHOAIMCPPlugin] = {}
-
-        eps = entry_points(group=PLUGIN_ENTRY_POINT_GROUP)
-
-        for ep in eps:
-            try:
-                logger.debug(f"Loading plugin from entry point: {ep.name}")
-                factory = ep.load()
-                plugin = factory()
-
-                # Verify plugin has required interface
-                if not hasattr(plugin, "metadata"):
-                    logger.warning(f"Plugin {ep.name} does not have metadata, skipping")
-                    continue
-
-                plugins[plugin.metadata.name] = plugin
-                logger.info(
-                    f"Discovered external plugin: {plugin.metadata.name} v{plugin.metadata.version}"
-                )
-            except Exception as e:
-                logger.error(f"Failed to load plugin {ep.name}: {e}")
-
-        return plugins
-
-    def _check_plugin_health(self) -> dict[str, RHOAIMCPPlugin]:
-        """Check health of all discovered external plugins.
-
-        Returns:
-            Dictionary of plugins that passed health checks.
-        """
-        healthy: dict[str, RHOAIMCPPlugin] = {}
-
-        for name, plugin in self._plugins.items():
-            try:
-                is_healthy, message = plugin.health_check(self)
-                if is_healthy:
-                    healthy[name] = plugin
-                    logger.info(f"Plugin {name} health check passed: {message}")
-                else:
-                    logger.warning(f"Plugin {name} unavailable: {message}")
-            except Exception as e:
-                logger.warning(f"Plugin {name} health check failed with error: {e}")
-
-        return healthy
-
-    def _check_domain_health(self) -> list[str]:
-        """Check health of core domain modules.
-
-        Returns:
-            List of domain names that passed health checks.
-        """
-        healthy: list[str] = []
-
-        for domain in self._domains:
-            try:
-                if domain.health_check:
-                    is_healthy, message = domain.health_check(self)
-                    if is_healthy:
-                        healthy.append(domain.name)
-                        logger.info(f"Domain {domain.name} health check passed: {message}")
-                    else:
-                        logger.warning(f"Domain {domain.name} unavailable: {message}")
-                else:
-                    # Domains without required CRDs are always healthy
-                    if not domain.required_crds:
-                        healthy.append(domain.name)
-                        logger.info(f"Domain {domain.name} active (no CRD requirements)")
-                    else:
-                        # Check if required CRDs are available
-                        # For now, assume healthy and let tools fail gracefully
-                        healthy.append(domain.name)
-                        logger.info(f"Domain {domain.name} active")
-            except Exception as e:
-                logger.warning(f"Domain {domain.name} health check failed with error: {e}")
-
-        return healthy
+    @property
+    def healthy_plugins(self) -> dict[str, Any]:
+        """Get plugins that passed health checks."""
+        if self._plugin_manager is None:
+            return {}
+        return self._plugin_manager.healthy_plugins
 
     def _create_lifespan(self) -> Callable[[Any], AbstractAsyncContextManager[None]]:
         """Create the lifespan context manager for the MCP server."""
@@ -172,14 +94,15 @@ class RHOAIServer:
             try:
                 server_self._k8s_client.connect()
 
-                # Check domain and plugin health after K8s connection is established
-                server_self._healthy_domains = server_self._check_domain_health()
-                server_self._healthy_plugins = server_self._check_plugin_health()
+                # Run health checks on all plugins
+                if server_self._plugin_manager:
+                    server_self._plugin_manager.run_health_checks(server_self)
 
-                logger.info(
-                    f"RHOAI MCP server started with {len(server_self._healthy_domains)}/{len(server_self._domains)} "
-                    f"domains and {len(server_self._healthy_plugins)}/{len(server_self._plugins)} external plugins active"
-                )
+                pm = server_self._plugin_manager
+                total = len(pm.registered_plugins) if pm else 0
+                healthy = len(pm.healthy_plugins) if pm else 0
+
+                logger.info(f"RHOAI MCP server started with {healthy}/{total} plugins active")
                 yield
             finally:
                 logger.info("Shutting down RHOAI MCP server...")
@@ -192,18 +115,18 @@ class RHOAIServer:
 
     def create_mcp(self) -> FastMCP:
         """Create and configure the FastMCP server."""
-        # Load core domain modules
-        from rhoai_mcp.domains.registry import get_core_domains
+        # Create plugin manager
+        self._plugin_manager = PluginManager()
 
-        self._domains = get_core_domains()
-        logger.info(f"Loaded {len(self._domains)} core domain modules")
+        # Load core domain plugins
+        core_count = self._plugin_manager.load_core_plugins()
+        logger.info(f"Loaded {core_count} core domain plugins")
 
-        # Discover external plugins (like training)
-        self._plugins = self._discover_plugins()
-        logger.info(f"Discovered {len(self._plugins)} external plugins")
+        # Discover and load external plugins
+        external_count = self._plugin_manager.load_entrypoint_plugins()
+        logger.info(f"Discovered {external_count} external plugins")
 
         # Create MCP server with lifespan
-        # Host/port configured for container networking (0.0.0.0 allows external access)
         mcp = FastMCP(
             name="rhoai-mcp",
             instructions="MCP server for Red Hat OpenShift AI - enables AI agents to "
@@ -217,56 +140,14 @@ class RHOAIServer:
         # Store reference
         self._mcp = mcp
 
-        # Register core domain modules directly (not via entry points)
-        self._register_domain_modules(mcp)
-
-        # Register tools and resources from external plugins
-        self._register_plugin_tools(mcp)
-        self._register_plugin_resources(mcp)
+        # Register tools and resources from all plugins
+        self._plugin_manager.register_all_tools(mcp, self)
+        self._plugin_manager.register_all_resources(mcp, self)
 
         # Register core resources (cluster status, etc.)
         self._register_core_resources(mcp)
 
         return mcp
-
-    def _register_domain_modules(self, mcp: FastMCP) -> None:
-        """Register MCP tools and resources from core domain modules."""
-        for domain in self._domains:
-            try:
-                if domain.register_tools:
-                    domain.register_tools(mcp, self)
-                    logger.debug(f"Registered tools from domain: {domain.name}")
-                if domain.register_resources:
-                    domain.register_resources(mcp, self)
-                    logger.debug(f"Registered resources from domain: {domain.name}")
-            except Exception as e:
-                logger.error(f"Failed to register domain {domain.name}: {e}")
-
-        logger.info(f"Registered {len(self._domains)} core domain modules")
-
-    def _register_plugin_tools(self, mcp: FastMCP) -> None:
-        """Register MCP tools from all discovered external plugins."""
-        for name, plugin in self._plugins.items():
-            try:
-                plugin.register_tools(mcp, self)
-                logger.debug(f"Registered tools from plugin: {name}")
-            except Exception as e:
-                logger.error(f"Failed to register tools from plugin {name}: {e}")
-
-        if self._plugins:
-            logger.info(f"Registered tools from {len(self._plugins)} external plugins")
-
-    def _register_plugin_resources(self, mcp: FastMCP) -> None:
-        """Register MCP resources from all discovered external plugins."""
-        for name, plugin in self._plugins.items():
-            try:
-                plugin.register_resources(mcp, self)
-                logger.debug(f"Registered resources from plugin: {name}")
-            except Exception as e:
-                logger.error(f"Failed to register resources from plugin {name}: {e}")
-
-        if self._plugins:
-            logger.info(f"Registered resources from {len(self._plugins)} external plugins")
 
     def _register_core_resources(self, mcp: FastMCP) -> None:
         """Register core MCP resources for cluster information."""
@@ -277,21 +158,18 @@ class RHOAIServer:
             """Get RHOAI cluster status and health.
 
             Returns overall cluster status including RHOAI operator status,
-            available components, and loaded domains/plugins.
+            available components, and loaded plugins.
             """
             k8s = self.k8s
+            pm = self._plugin_manager
 
             result: dict = {
                 "connected": k8s.is_connected,
                 "rhoai_available": False,
                 "components": {},
-                "domains": {
-                    "total": len(self._domains),
-                    "active": self._healthy_domains,
-                },
                 "plugins": {
-                    "discovered": list(self._plugins.keys()),
-                    "active": list(self._healthy_plugins.keys()),
+                    "total": len(pm.registered_plugins) if pm else 0,
+                    "active": list(pm.healthy_plugins.keys()) if pm else [],
                 },
                 "accelerators": [],
             }
@@ -333,39 +211,34 @@ class RHOAIServer:
 
         @mcp.resource("rhoai://cluster/plugins")
         def cluster_plugins() -> dict:
-            """Get information about loaded domains and external plugins.
+            """Get information about loaded plugins.
 
-            Returns details about all core domains and external plugins
-            with their health status.
+            Returns details about all plugins with their health status.
             """
-            domain_info = {}
-            for domain in self._domains:
-                domain_info[domain.name] = {
-                    "description": domain.description,
-                    "requires_crds": domain.required_crds,
-                    "healthy": domain.name in self._healthy_domains,
-                    "type": "core",
-                }
+            pm = self._plugin_manager
+            if not pm:
+                return {"plugins": {}}
 
             plugin_info = {}
-            for name, plugin in self._plugins.items():
-                meta = plugin.metadata
-                is_healthy = name in self._healthy_plugins
+            for name, plugin in pm.registered_plugins.items():
+                is_healthy = name in pm.healthy_plugins
+
+                # Get metadata if available
+                meta = None
+                if hasattr(plugin, "rhoai_get_plugin_metadata"):
+                    meta = plugin.rhoai_get_plugin_metadata()
+
                 plugin_info[name] = {
-                    "version": meta.version,
-                    "description": meta.description,
-                    "maintainer": meta.maintainer,
-                    "requires_crds": meta.requires_crds,
+                    "version": meta.version if meta else "unknown",
+                    "description": meta.description if meta else "No description",
+                    "maintainer": meta.maintainer if meta else "unknown",
+                    "requires_crds": meta.requires_crds if meta else [],
                     "healthy": is_healthy,
-                    "type": "external",
                 }
 
             return {
-                "total_domains": len(self._domains),
-                "active_domains": len(self._healthy_domains),
-                "total_plugins": len(self._plugins),
-                "active_plugins": len(self._healthy_plugins),
-                "domains": domain_info,
+                "total": len(pm.registered_plugins),
+                "active": len(pm.healthy_plugins),
                 "plugins": plugin_info,
             }
 

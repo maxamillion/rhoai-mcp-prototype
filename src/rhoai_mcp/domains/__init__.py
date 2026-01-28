@@ -1,12 +1,29 @@
 """Core domain modules for RHOAI MCP.
 
-This package contains the core domain functionality that was previously
-split across separate packages. These domains are now registered directly
-with the server rather than via entry points.
+This package contains the core domain plugins that are registered
+directly with the server using pluggy hooks.
 
-External plugins (like training) still use entry point discovery.
+External plugins can be discovered via entry points.
 """
 
-from rhoai_mcp.domains.registry import DomainModule, get_core_domains
+from rhoai_mcp.domains.registry import (
+    ConnectionsPlugin,
+    InferencePlugin,
+    NotebooksPlugin,
+    PipelinesPlugin,
+    ProjectsPlugin,
+    StoragePlugin,
+    TrainingPlugin,
+    get_core_plugins,
+)
 
-__all__ = ["DomainModule", "get_core_domains"]
+__all__ = [
+    "ConnectionsPlugin",
+    "InferencePlugin",
+    "NotebooksPlugin",
+    "PipelinesPlugin",
+    "ProjectsPlugin",
+    "StoragePlugin",
+    "TrainingPlugin",
+    "get_core_plugins",
+]

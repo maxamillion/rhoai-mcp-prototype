@@ -1,92 +1,116 @@
-"""Integration tests for plugin and domain discovery."""
+"""Integration tests for pluggy-based plugin discovery."""
+
+from unittest.mock import MagicMock
 
 
-def test_external_plugins_discovered():
-    """Verify external plugins are discovered via entry points.
+def test_plugin_manager_loads_core_plugins():
+    """Verify PluginManager loads all core domain plugins."""
+    from rhoai_mcp.plugin_manager import PluginManager
 
-    With the hybrid architecture, all domains are now core domains registered
-    directly via the domain registry. There are no external plugins.
-    """
-    from rhoai_mcp.server import RHOAIServer
+    pm = PluginManager()
+    count = pm.load_core_plugins()
 
-    server = RHOAIServer()
-    # Call _discover_plugins directly since _plugins is populated during create_mcp()
-    plugins = server._discover_plugins()
+    # Should load all 7 core domain plugins
+    assert count == 7
+    assert len(pm.registered_plugins) == 7
 
-    # No external plugins - all domains are now core
-    # This test verifies the entry point discovery mechanism still works
-    # even if no external plugins are registered
-    discovered = set(plugins.keys())
-    assert isinstance(discovered, set), "Plugin discovery should return a dict with plugin names"
-
-
-def test_core_domains_loaded():
-    """Verify all core domains are loaded from the registry."""
-    from rhoai_mcp.domains.registry import get_core_domains
-
-    domains = get_core_domains()
-    domain_names = {d.name for d in domains}
-
-    expected_domains = {
+    expected_plugins = {
+        "projects",
         "notebooks",
         "inference",
         "pipelines",
         "connections",
         "storage",
-        "projects",
         "training",
     }
-
-    assert expected_domains == domain_names, (
-        f"Domain mismatch. Expected: {expected_domains}, Got: {domain_names}"
-    )
+    assert set(pm.registered_plugins.keys()) == expected_plugins
 
 
-def test_plugin_metadata():
-    """Verify all external plugins have valid metadata."""
-    from rhoai_mcp.server import RHOAIServer
+def test_core_plugins_have_valid_metadata():
+    """Verify all core plugins provide valid metadata."""
+    from rhoai_mcp.plugin_manager import PluginManager
 
-    server = RHOAIServer()
-    plugins = server._discover_plugins()
+    pm = PluginManager()
+    pm.load_core_plugins()
 
-    for name, plugin in plugins.items():
-        meta = plugin.metadata
-        assert meta.name == name
+    metadata_list = pm.get_all_metadata()
+    assert len(metadata_list) == 7
+
+    for meta in metadata_list:
+        assert meta.name
         assert meta.version
         assert meta.description
         assert meta.maintainer
 
 
-def test_plugins_can_register():
-    """Verify external plugins can register tools and resources without error."""
-    from unittest.mock import MagicMock
+def test_plugins_can_register_tools():
+    """Verify plugins can register tools without error."""
+    from rhoai_mcp.plugin_manager import PluginManager
+    from rhoai_mcp.server import RHOAIServer
 
+    pm = PluginManager()
+    pm.load_core_plugins()
+
+    mock_mcp = MagicMock()
+    server = RHOAIServer()
+
+    # Should not raise
+    pm.register_all_tools(mock_mcp, server)
+
+
+def test_plugins_can_register_resources():
+    """Verify plugins can register resources without error."""
+    from rhoai_mcp.plugin_manager import PluginManager
+    from rhoai_mcp.server import RHOAIServer
+
+    pm = PluginManager()
+    pm.load_core_plugins()
+
+    mock_mcp = MagicMock()
+    server = RHOAIServer()
+
+    # Should not raise
+    pm.register_all_resources(mock_mcp, server)
+
+
+def test_server_creates_plugin_manager():
+    """Verify RHOAIServer creates and uses PluginManager."""
     from rhoai_mcp.server import RHOAIServer
 
     server = RHOAIServer()
-    plugins = server._discover_plugins()
-    mock_mcp = MagicMock()
+    mcp = server.create_mcp()
 
-    for _name, plugin in plugins.items():
-        # Should not raise
-        plugin.register_tools(mock_mcp, server)
-        plugin.register_resources(mock_mcp, server)
+    assert server._plugin_manager is not None
+    assert len(server.plugins) == 7
 
 
-def test_domains_can_register():
-    """Verify core domains can register tools and resources without error."""
-    from unittest.mock import MagicMock
+def test_external_plugins_discovered():
+    """Verify external plugins are discovered via entry points.
 
-    from rhoai_mcp.domains.registry import get_core_domains
-    from rhoai_mcp.server import RHOAIServer
+    With the pluggy architecture, external plugins are discovered
+    via load_setuptools_entrypoints. Currently no external plugins
+    are registered, so this tests the mechanism works.
+    """
+    from rhoai_mcp.plugin_manager import PluginManager
 
-    server = RHOAIServer()
-    domains = get_core_domains()
-    mock_mcp = MagicMock()
+    pm = PluginManager()
 
-    for domain in domains:
-        # Should not raise
-        if domain.register_tools:
-            domain.register_tools(mock_mcp, server)
-        if domain.register_resources:
-            domain.register_resources(mock_mcp, server)
+    # This should not raise even with no external plugins
+    count = pm.load_entrypoint_plugins()
+
+    # No external plugins registered currently
+    assert count == 0
+
+
+def test_get_core_plugins_returns_plugin_instances():
+    """Verify get_core_plugins returns proper plugin instances."""
+    from rhoai_mcp.domains.registry import get_core_plugins
+    from rhoai_mcp.plugin import BasePlugin
+
+    plugins = get_core_plugins()
+    assert len(plugins) == 7
+
+    for plugin in plugins:
+        assert isinstance(plugin, BasePlugin)
+        # All should have hookimpl-decorated methods
+        assert hasattr(plugin.rhoai_get_plugin_metadata, "rhoai_mcp_impl")

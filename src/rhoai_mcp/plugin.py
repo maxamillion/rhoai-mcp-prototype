@@ -1,13 +1,15 @@
 """Plugin interface for RHOAI MCP components.
 
-This module defines the plugin protocol that all RHOAI MCP components must implement
-to be discovered and loaded by the server.
+This module defines the plugin base class and metadata that all RHOAI MCP
+plugins use to integrate with the server via pluggy hooks.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING
+
+from rhoai_mcp.hooks import hookimpl
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -45,89 +47,16 @@ class PluginMetadata:
     """
 
 
-@runtime_checkable
-class RHOAIMCPPlugin(Protocol):
-    """Protocol defining the interface for RHOAI MCP plugins.
-
-    All component packages (notebooks, inference, pipelines, etc.) must
-    implement this protocol to be discovered and loaded by the server.
-
-    Plugins are discovered via Python entry points in the 'rhoai_mcp.plugins'
-    group. Each entry point should point to a factory function that returns
-    an instance implementing this protocol.
-
-    Example entry point in pyproject.toml:
-        [project.entry-points."rhoai_mcp.plugins"]
-        notebooks = "rhoai_mcp_notebooks.plugin:create_plugin"
-    """
-
-    @property
-    def metadata(self) -> PluginMetadata:
-        """Return plugin metadata.
-
-        This property must be implemented to provide information
-        about the plugin including its name, version, and requirements.
-        """
-        ...
-
-    def register_tools(self, mcp: FastMCP, server: RHOAIServer) -> None:
-        """Register MCP tools provided by this plugin.
-
-        This method is called during server startup to register all
-        tools (functions) that this plugin provides.
-
-        Args:
-            mcp: The FastMCP server instance to register tools with.
-            server: The RHOAI server instance for accessing K8s client and config.
-        """
-        ...
-
-    def register_resources(self, mcp: FastMCP, server: RHOAIServer) -> None:
-        """Register MCP resources provided by this plugin.
-
-        This method is called during server startup to register all
-        resources (data endpoints) that this plugin provides.
-
-        Args:
-            mcp: The FastMCP server instance to register resources with.
-            server: The RHOAI server instance for accessing K8s client and config.
-        """
-        ...
-
-    def get_crd_definitions(self) -> list[CRDDefinition]:
-        """Return CRD definitions used by this plugin.
-
-        This allows the core server to know about all CRDs without
-        having to import component-specific code.
-
-        Returns:
-            List of CRDDefinition objects for CRDs this plugin uses.
-        """
-        ...
-
-    def health_check(self, server: RHOAIServer) -> tuple[bool, str]:
-        """Check if this plugin can operate correctly.
-
-        This method is called during startup to verify that all
-        required CRDs are available and the plugin can function.
-        Plugins that fail health checks are skipped, allowing the
-        server to gracefully degrade when some components are unavailable.
-
-        Args:
-            server: The RHOAI server instance for accessing K8s client.
-
-        Returns:
-            Tuple of (healthy, message) where healthy is True if the
-            plugin can operate, and message provides details.
-        """
-        ...
-
-
 class BasePlugin:
-    """Base implementation of RHOAIMCPPlugin with common functionality.
+    """Base implementation of an RHOAI MCP plugin with common functionality.
 
     Component plugins can extend this class to get default implementations
-    of optional methods.
+    of hook methods. All hook methods are decorated with @hookimpl to
+    register them with pluggy.
+
+    Example entry point in pyproject.toml for external plugins:
+        [project.entry-points."rhoai_mcp.plugins"]
+        my_plugin = "my_package.plugin:MyPlugin"
     """
 
     def __init__(self, metadata: PluginMetadata) -> None:
@@ -138,24 +67,28 @@ class BasePlugin:
         """
         self._metadata = metadata
 
-    @property
-    def metadata(self) -> PluginMetadata:
+    @hookimpl
+    def rhoai_get_plugin_metadata(self) -> PluginMetadata:
         """Return plugin metadata."""
         return self._metadata
 
-    def register_tools(self, mcp: FastMCP, server: RHOAIServer) -> None:
+    @hookimpl
+    def rhoai_register_tools(self, mcp: FastMCP, server: RHOAIServer) -> None:
         """Register MCP tools. Override in subclass."""
         pass
 
-    def register_resources(self, mcp: FastMCP, server: RHOAIServer) -> None:
+    @hookimpl
+    def rhoai_register_resources(self, mcp: FastMCP, server: RHOAIServer) -> None:
         """Register MCP resources. Override in subclass."""
         pass
 
-    def get_crd_definitions(self) -> list[CRDDefinition]:
+    @hookimpl
+    def rhoai_get_crd_definitions(self) -> list[CRDDefinition]:
         """Return CRD definitions. Override in subclass."""
         return []
 
-    def health_check(self, server: RHOAIServer) -> tuple[bool, str]:
+    @hookimpl
+    def rhoai_health_check(self, server: RHOAIServer) -> tuple[bool, str]:
         """Check plugin health by verifying required CRDs are available.
 
         Default implementation checks that all CRDs listed in
@@ -164,7 +97,7 @@ class BasePlugin:
         if not self._metadata.requires_crds:
             return True, "No CRD requirements"
 
-        crd_defs = self.get_crd_definitions()
+        crd_defs = self.rhoai_get_crd_definitions()
         crd_map = {crd.kind: crd for crd in crd_defs}
 
         missing_crds = []
