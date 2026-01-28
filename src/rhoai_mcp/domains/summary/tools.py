@@ -171,22 +171,26 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             res_name = resource.get("name", "")
 
             if not res_type or not res_name:
-                results.append({
-                    "name": res_name or "unknown",
-                    "type": res_type or "unknown",
-                    "error": "Both type and name are required",
-                })
+                results.append(
+                    {
+                        "name": res_name or "unknown",
+                        "type": res_type or "unknown",
+                        "error": "Both type and name are required",
+                    }
+                )
                 continue
 
             try:
                 status = _get_resource_status(server, res_type, res_name, namespace)
                 results.append(status)
             except Exception as e:
-                results.append({
-                    "name": res_name,
-                    "type": res_type,
-                    "error": str(e),
-                })
+                results.append(
+                    {
+                        "name": res_name,
+                        "type": res_type,
+                        "error": str(e),
+                    }
+                )
 
         return {
             "namespace": namespace,
