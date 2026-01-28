@@ -108,6 +108,34 @@ class RHOAIConfig(BaseSettings):
         description="Logging level",
     )
 
+    # Context window optimization settings
+    default_verbosity: str = Field(
+        default="standard",
+        description="Default verbosity level for responses: minimal, standard, or full",
+    )
+    default_list_limit: int | None = Field(
+        default=None,
+        ge=1,
+        le=100,
+        description="Default limit for list operations (None for all items)",
+    )
+    max_list_limit: int = Field(
+        default=100,
+        ge=1,
+        le=1000,
+        description="Maximum allowed limit for list operations",
+    )
+    enable_response_caching: bool = Field(
+        default=False,
+        description="Enable caching of list responses to reduce API calls",
+    )
+    cache_ttl_seconds: int = Field(
+        default=30,
+        ge=1,
+        le=300,
+        description="Cache TTL in seconds when caching is enabled",
+    )
+
     @field_validator("kubeconfig_path", mode="before")
     @classmethod
     def resolve_kubeconfig_path(cls, v: str | Path | None) -> Path | None:

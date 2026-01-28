@@ -25,6 +25,10 @@ class TestDiscoveryTools:
         server.k8s = MagicMock()
         server.k8s.core_v1 = MagicMock()
         server.config.is_operation_allowed.return_value = (True, None)
+        # Context window optimization settings
+        server.config.default_list_limit = None
+        server.config.max_list_limit = 100
+        server.config.default_verbosity = "standard"
         return server
 
     def test_register_tools_registers_all_discovery_tools(
@@ -56,8 +60,9 @@ class TestDiscoveryTools:
 
         result = tools["list_training_jobs"](namespace="default")
 
-        assert result["jobs"] == []
-        assert result["count"] == 0
+        assert result["items"] == []
+        assert result["total"] == 0
+        assert result["namespace"] == "default"
 
     def test_list_training_jobs_with_results(
         self, mock_mcp: MagicMock, mock_server: MagicMock
@@ -82,9 +87,9 @@ class TestDiscoveryTools:
 
         result = tools["list_training_jobs"](namespace="default")
 
-        assert result["count"] == 2
-        assert len(result["jobs"]) == 2
-        assert result["jobs"][0]["name"] == "job-1"
+        assert result["total"] == 2
+        assert len(result["items"]) == 2
+        assert result["items"][0]["name"] == "job-1"
 
     def test_get_training_job(self, mock_mcp: MagicMock, mock_server: MagicMock) -> None:
         """Test getting a specific training job."""

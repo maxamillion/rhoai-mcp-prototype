@@ -6,6 +6,12 @@ from mcp.server.fastmcp import FastMCP
 
 from rhoai_mcp.domains.notebooks.client import NotebookClient
 from rhoai_mcp.domains.notebooks.models import WorkbenchCreate
+from rhoai_mcp.utils.response import (
+    PaginatedResponse,
+    ResponseBuilder,
+    Verbosity,
+    paginate,
+)
 
 if TYPE_CHECKING:
     from rhoai_mcp.server import RHOAIServer
@@ -15,98 +21,68 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
     """Register workbench management tools with the MCP server."""
 
     @mcp.tool()
-    def list_workbenches(namespace: str) -> list[dict[str, Any]]:
-        """List all workbenches in a Data Science Project.
+    def list_workbenches(
+        namespace: str,
+        limit: int | None = None,
+        offset: int = 0,
+        verbosity: str = "standard",
+    ) -> dict[str, Any]:
+        """List workbenches in a Data Science Project with pagination.
 
         Workbenches are Jupyter notebook environments or other IDE environments
         running in the project.
 
         Args:
             namespace: The project (namespace) name.
+            limit: Maximum number of items to return (None for all).
+            offset: Starting offset for pagination (default: 0).
+            verbosity: Response detail level - "minimal", "standard", or "full".
+                Use "minimal" for quick status checks (~85% token savings).
 
         Returns:
-            List of workbenches with their status, image, and URL.
+            Paginated list of workbenches with metadata.
         """
         client = NotebookClient(server.k8s)
         workbenches = client.list_workbenches(namespace)
 
-        return [
-            {
-                "name": wb.metadata.name,
-                "display_name": wb.display_name,
-                "status": wb.status.value,
-                "image": wb.image,
-                "image_display_name": wb.image_display_name,
-                "size": wb.size,
-                "url": wb.url,
-                "stopped_time": (wb.stopped_time.isoformat() if wb.stopped_time else None),
-                "volumes": wb.volumes,
-                "created": (
-                    wb.metadata.creation_timestamp.isoformat()
-                    if wb.metadata.creation_timestamp
-                    else None
-                ),
-            }
-            for wb in workbenches
-        ]
+        # Apply config limits
+        effective_limit = limit
+        if effective_limit is not None:
+            effective_limit = min(effective_limit, server.config.max_list_limit)
+        elif server.config.default_list_limit is not None:
+            effective_limit = server.config.default_list_limit
+
+        # Paginate
+        paginated, total = paginate(workbenches, offset, effective_limit)
+
+        # Format with verbosity
+        v = Verbosity.from_str(verbosity)
+        items = [ResponseBuilder.workbench_list_item(wb, v) for wb in paginated]
+
+        return PaginatedResponse.build(items, total, offset, effective_limit)
 
     @mcp.tool()
-    def get_workbench(name: str, namespace: str) -> dict[str, Any]:
+    def get_workbench(
+        name: str,
+        namespace: str,
+        verbosity: str = "full",
+    ) -> dict[str, Any]:
         """Get detailed information about a workbench.
 
         Args:
             name: The workbench name.
             namespace: The project (namespace) name.
+            verbosity: Response detail level - "minimal", "standard", or "full".
+                Use "minimal" for quick status checks.
 
         Returns:
-            Detailed workbench information including status, resources, and conditions.
+            Workbench information at the requested verbosity level.
         """
         client = NotebookClient(server.k8s)
         wb = client.get_workbench(name, namespace)
 
-        result: dict[str, Any] = {
-            "name": wb.metadata.name,
-            "namespace": wb.metadata.namespace,
-            "display_name": wb.display_name,
-            "status": wb.status.value,
-            "image": wb.image,
-            "image_display_name": wb.image_display_name,
-            "size": wb.size,
-            "url": wb.url,
-            "stopped_time": wb.stopped_time.isoformat() if wb.stopped_time else None,
-            "volumes": wb.volumes,
-            "env_from": wb.env_from,
-            "labels": wb.metadata.labels,
-            "annotations": wb.metadata.annotations,
-            "created": (
-                wb.metadata.creation_timestamp.isoformat()
-                if wb.metadata.creation_timestamp
-                else None
-            ),
-        }
-
-        if wb.resources:
-            result["resources"] = {
-                "cpu_request": wb.resources.cpu_request,
-                "cpu_limit": wb.resources.cpu_limit,
-                "memory_request": wb.resources.memory_request,
-                "memory_limit": wb.resources.memory_limit,
-                "gpu_request": wb.resources.gpu_request,
-                "gpu_limit": wb.resources.gpu_limit,
-            }
-
-        if wb.conditions:
-            result["conditions"] = [
-                {
-                    "type": c.type,
-                    "status": c.status,
-                    "reason": c.reason,
-                    "message": c.message,
-                }
-                for c in wb.conditions
-            ]
-
-        return result
+        v = Verbosity.from_str(verbosity)
+        return ResponseBuilder.workbench_detail(wb, v)
 
     @mcp.tool()
     def create_workbench(

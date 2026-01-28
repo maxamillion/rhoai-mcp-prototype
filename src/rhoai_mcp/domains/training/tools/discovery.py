@@ -5,6 +5,12 @@ from typing import TYPE_CHECKING, Any
 from mcp.server.fastmcp import FastMCP
 
 from rhoai_mcp.domains.training.client import TrainingClient
+from rhoai_mcp.utils.response import (
+    PaginatedResponse,
+    ResponseBuilder,
+    Verbosity,
+    paginate,
+)
 
 if TYPE_CHECKING:
     from rhoai_mcp.server import RHOAIServer
@@ -14,50 +20,54 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
     """Register training discovery tools with the MCP server."""
 
     @mcp.tool()
-    def list_training_jobs(namespace: str) -> dict[str, Any]:
-        """List all training jobs in a namespace.
+    def list_training_jobs(
+        namespace: str,
+        limit: int | None = None,
+        offset: int = 0,
+        verbosity: str = "standard",
+    ) -> dict[str, Any]:
+        """List training jobs in a namespace with pagination.
 
-        Returns information about all TrainJob resources in the specified
+        Returns information about TrainJob resources in the specified
         namespace, including their status and progress.
 
         Args:
             namespace: The namespace to list training jobs from.
+            limit: Maximum number of items to return (None for all).
+            offset: Starting offset for pagination (default: 0).
+            verbosity: Response detail level - "minimal", "standard", or "full".
+                Use "minimal" for quick status checks.
 
         Returns:
-            List of training jobs with their status and metadata.
+            Paginated list of training jobs with metadata.
         """
         client = TrainingClient(server.k8s)
         jobs = client.list_training_jobs(namespace)
 
-        job_list = []
-        for job in jobs:
-            job_info: dict[str, Any] = {
-                "name": job.name,
-                "status": job.status.value,
-                "model_id": job.model_id,
-                "dataset_id": job.dataset_id,
-                "num_nodes": job.num_nodes,
-                "created": job.creation_timestamp,
-            }
+        # Apply config limits
+        effective_limit = limit
+        if effective_limit is not None:
+            effective_limit = min(effective_limit, server.config.max_list_limit)
+        elif server.config.default_list_limit is not None:
+            effective_limit = server.config.default_list_limit
 
-            if job.progress:
-                job_info["progress"] = {
-                    "state": job.progress.state.value,
-                    "current_epoch": job.progress.current_epoch,
-                    "total_epochs": job.progress.total_epochs,
-                    "progress_percent": round(job.progress.progress_percent, 1),
-                }
+        # Paginate
+        paginated, total = paginate(jobs, offset, effective_limit)
 
-            job_list.append(job_info)
+        # Format with verbosity
+        v = Verbosity.from_str(verbosity)
+        items = [ResponseBuilder.training_job_list_item(job, v) for job in paginated]
 
-        return {
-            "namespace": namespace,
-            "count": len(job_list),
-            "jobs": job_list,
-        }
+        result = PaginatedResponse.build(items, total, offset, effective_limit)
+        result["namespace"] = namespace
+        return result
 
     @mcp.tool()
-    def get_training_job(namespace: str, name: str) -> dict[str, Any]:
+    def get_training_job(
+        namespace: str,
+        name: str,
+        verbosity: str = "full",
+    ) -> dict[str, Any]:
         """Get detailed information about a specific training job.
 
         Returns comprehensive information about a TrainJob including its
@@ -66,42 +76,17 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
         Args:
             namespace: The namespace of the training job.
             name: The name of the training job.
+            verbosity: Response detail level - "minimal", "standard", or "full".
+                Use "minimal" for quick status checks.
 
         Returns:
-            Detailed training job information.
+            Training job information at the requested verbosity level.
         """
         client = TrainingClient(server.k8s)
         job = client.get_training_job(namespace, name)
 
-        result: dict[str, Any] = {
-            "name": job.name,
-            "namespace": job.namespace,
-            "status": job.status.value,
-            "model_id": job.model_id,
-            "dataset_id": job.dataset_id,
-            "num_nodes": job.num_nodes,
-            "gpus_per_node": job.gpus_per_node,
-            "runtime_ref": job.runtime_ref,
-            "checkpoint_dir": job.checkpoint_dir,
-            "created": job.creation_timestamp,
-        }
-
-        if job.progress:
-            result["progress"] = {
-                "state": job.progress.state.value,
-                "current_epoch": job.progress.current_epoch,
-                "total_epochs": job.progress.total_epochs,
-                "current_step": job.progress.current_step,
-                "total_steps": job.progress.total_steps,
-                "loss": job.progress.loss,
-                "learning_rate": job.progress.learning_rate,
-                "throughput": job.progress.throughput,
-                "progress_percent": round(job.progress.progress_percent, 1),
-                "progress_bar": job.progress.progress_bar(),
-                "eta_seconds": job.progress.eta_seconds,
-            }
-
-        return result
+        v = Verbosity.from_str(verbosity)
+        return ResponseBuilder.training_job_detail(job, v)
 
     @mcp.tool()
     def get_cluster_resources() -> dict[str, Any]:

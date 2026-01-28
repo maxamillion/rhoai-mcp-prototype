@@ -129,6 +129,10 @@ def mock_server(mock_k8s_client: MagicMock) -> MagicMock:
     server = MagicMock()
     server.k8s = mock_k8s_client
     server.config.is_operation_allowed.return_value = (True, None)
+    # Context window optimization settings
+    server.config.default_list_limit = None
+    server.config.max_list_limit = 100
+    server.config.default_verbosity = "standard"
     return server
 
 

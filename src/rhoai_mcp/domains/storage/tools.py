@@ -6,6 +6,12 @@ from mcp.server.fastmcp import FastMCP
 
 from rhoai_mcp.domains.storage.client import StorageClient
 from rhoai_mcp.domains.storage.models import StorageCreate
+from rhoai_mcp.utils.response import (
+    PaginatedResponse,
+    ResponseBuilder,
+    Verbosity,
+    paginate,
+)
 
 if TYPE_CHECKING:
     from rhoai_mcp.server import RHOAIServer
@@ -15,17 +21,42 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
     """Register storage tools with the MCP server."""
 
     @mcp.tool()
-    def list_storage(namespace: str) -> list[dict[str, Any]]:
-        """List all persistent storage (PVCs) in a Data Science Project.
+    def list_storage(
+        namespace: str,
+        limit: int | None = None,
+        offset: int = 0,
+        verbosity: str = "standard",
+    ) -> dict[str, Any]:
+        """List persistent storage (PVCs) in a Data Science Project with pagination.
 
         Args:
             namespace: The project (namespace) name.
+            limit: Maximum number of items to return (None for all).
+            offset: Starting offset for pagination (default: 0).
+            verbosity: Response detail level - "minimal", "standard", or "full".
+                Use "minimal" for quick status checks.
 
         Returns:
-            List of PVCs with their size, status, and configuration.
+            Paginated list of PVCs with metadata.
         """
         client = StorageClient(server.k8s)
-        return client.list_storage(namespace)
+        all_items = client.list_storage(namespace)
+
+        # Apply config limits
+        effective_limit = limit
+        if effective_limit is not None:
+            effective_limit = min(effective_limit, server.config.max_list_limit)
+        elif server.config.default_list_limit is not None:
+            effective_limit = server.config.default_list_limit
+
+        # Paginate
+        paginated, total = paginate(all_items, offset, effective_limit)
+
+        # Format with verbosity
+        v = Verbosity.from_str(verbosity)
+        items = [ResponseBuilder.storage_list_item(storage, v) for storage in paginated]
+
+        return PaginatedResponse.build(items, total, offset, effective_limit)
 
     @mcp.tool()
     def create_storage(

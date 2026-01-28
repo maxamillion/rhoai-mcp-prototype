@@ -207,6 +207,35 @@ class TrainingPlugin(BasePlugin):
         return TrainingCRDs.all_crds()
 
 
+class SummaryPlugin(BasePlugin):
+    """Plugin for context-efficient cluster and project summaries.
+
+    Provides lightweight tools optimized for AI agent context windows,
+    offering compact overviews that reduce token usage significantly.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            PluginMetadata(
+                name="summary",
+                version="1.0.0",
+                description="Context-efficient summary tools for AI agents",
+                maintainer="rhoai-mcp@redhat.com",
+                requires_crds=[],
+            )
+        )
+
+    @hookimpl
+    def rhoai_register_tools(self, mcp: FastMCP, server: RHOAIServer) -> None:
+        from rhoai_mcp.domains.summary.tools import register_tools
+
+        register_tools(mcp, server)
+
+    @hookimpl
+    def rhoai_health_check(self, server: RHOAIServer) -> tuple[bool, str]:  # noqa: ARG002
+        return True, "Summary tools use core domain clients"
+
+
 def get_core_plugins() -> list[BasePlugin]:
     """Return all core domain plugin instances.
 
@@ -221,4 +250,5 @@ def get_core_plugins() -> list[BasePlugin]:
         ConnectionsPlugin(),
         StoragePlugin(),
         TrainingPlugin(),
+        SummaryPlugin(),
     ]

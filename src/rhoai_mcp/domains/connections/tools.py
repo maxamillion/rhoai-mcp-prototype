@@ -6,6 +6,12 @@ from mcp.server.fastmcp import FastMCP
 
 from rhoai_mcp.domains.connections.client import ConnectionClient
 from rhoai_mcp.domains.connections.models import S3DataConnectionCreate
+from rhoai_mcp.utils.response import (
+    PaginatedResponse,
+    ResponseBuilder,
+    Verbosity,
+    paginate,
+)
 
 if TYPE_CHECKING:
     from rhoai_mcp.server import RHOAIServer
@@ -15,20 +21,45 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
     """Register data connection tools with the MCP server."""
 
     @mcp.tool()
-    def list_data_connections(namespace: str) -> list[dict[str, Any]]:
-        """List all data connections in a Data Science Project.
+    def list_data_connections(
+        namespace: str,
+        limit: int | None = None,
+        offset: int = 0,
+        verbosity: str = "standard",
+    ) -> dict[str, Any]:
+        """List data connections in a Data Science Project with pagination.
 
         Data connections are secrets with RHOAI-specific labels that provide
         credentials for accessing external data sources like S3 buckets.
 
         Args:
             namespace: The project (namespace) name.
+            limit: Maximum number of items to return (None for all).
+            offset: Starting offset for pagination (default: 0).
+            verbosity: Response detail level - "minimal", "standard", or "full".
+                Use "minimal" for quick status checks.
 
         Returns:
-            List of data connections with their configuration (credentials masked).
+            Paginated list of data connections with metadata (credentials masked).
         """
         client = ConnectionClient(server.k8s)
-        return client.list_data_connections(namespace)
+        all_items = client.list_data_connections(namespace)
+
+        # Apply config limits
+        effective_limit = limit
+        if effective_limit is not None:
+            effective_limit = min(effective_limit, server.config.max_list_limit)
+        elif server.config.default_list_limit is not None:
+            effective_limit = server.config.default_list_limit
+
+        # Paginate
+        paginated, total = paginate(all_items, offset, effective_limit)
+
+        # Format with verbosity
+        v = Verbosity.from_str(verbosity)
+        items = [ResponseBuilder.data_connection_list_item(conn, v) for conn in paginated]
+
+        return PaginatedResponse.build(items, total, offset, effective_limit)
 
     @mcp.tool()
     def get_data_connection(name: str, namespace: str) -> dict[str, Any]:

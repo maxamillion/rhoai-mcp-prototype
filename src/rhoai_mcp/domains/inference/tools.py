@@ -6,6 +6,12 @@ from mcp.server.fastmcp import FastMCP
 
 from rhoai_mcp.domains.inference.client import InferenceClient
 from rhoai_mcp.domains.inference.models import InferenceServiceCreate
+from rhoai_mcp.utils.response import (
+    PaginatedResponse,
+    ResponseBuilder,
+    Verbosity,
+    paginate,
+)
 
 if TYPE_CHECKING:
     from rhoai_mcp.server import RHOAIServer
@@ -15,77 +21,68 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
     """Register model serving tools with the MCP server."""
 
     @mcp.tool()
-    def list_inference_services(namespace: str) -> list[dict[str, Any]]:
-        """List all deployed models in a Data Science Project.
+    def list_inference_services(
+        namespace: str,
+        limit: int | None = None,
+        offset: int = 0,
+        verbosity: str = "standard",
+    ) -> dict[str, Any]:
+        """List deployed models in a Data Science Project with pagination.
 
         Returns InferenceService resources representing deployed models
         that can serve predictions.
 
         Args:
             namespace: The project (namespace) name.
+            limit: Maximum number of items to return (None for all).
+            offset: Starting offset for pagination (default: 0).
+            verbosity: Response detail level - "minimal", "standard", or "full".
+                Use "minimal" for quick status checks.
 
         Returns:
-            List of deployed models with their status and endpoints.
+            Paginated list of deployed models with metadata.
         """
         client = InferenceClient(server.k8s)
-        return client.list_inference_services(namespace)
+        all_items = client.list_inference_services(namespace)
+
+        # Apply config limits
+        effective_limit = limit
+        if effective_limit is not None:
+            effective_limit = min(effective_limit, server.config.max_list_limit)
+        elif server.config.default_list_limit is not None:
+            effective_limit = server.config.default_list_limit
+
+        # Paginate
+        paginated, total = paginate(all_items, offset, effective_limit)
+
+        # Format with verbosity
+        v = Verbosity.from_str(verbosity)
+        items = [ResponseBuilder.inference_service_list_item(isvc, v) for isvc in paginated]
+
+        return PaginatedResponse.build(items, total, offset, effective_limit)
 
     @mcp.tool()
-    def get_inference_service(name: str, namespace: str) -> dict[str, Any]:
+    def get_inference_service(
+        name: str,
+        namespace: str,
+        verbosity: str = "full",
+    ) -> dict[str, Any]:
         """Get detailed information about a deployed model.
 
         Args:
             name: The InferenceService name.
             namespace: The project (namespace) name.
+            verbosity: Response detail level - "minimal", "standard", or "full".
+                Use "minimal" for quick status checks.
 
         Returns:
-            Detailed model deployment information including status, endpoints,
-            and resource configuration.
+            Model deployment information at the requested verbosity level.
         """
         client = InferenceClient(server.k8s)
         isvc = client.get_inference_service(name, namespace)
 
-        result: dict[str, Any] = {
-            "name": isvc.metadata.name,
-            "namespace": isvc.metadata.namespace,
-            "display_name": isvc.display_name,
-            "runtime": isvc.runtime,
-            "model_format": isvc.model_format,
-            "storage_uri": isvc.storage_uri,
-            "status": isvc.status.value,
-            "url": isvc.url,
-            "internal_url": isvc.internal_url,
-            "labels": isvc.metadata.labels,
-            "annotations": isvc.metadata.annotations,
-            "created": (
-                isvc.metadata.creation_timestamp.isoformat()
-                if isvc.metadata.creation_timestamp
-                else None
-            ),
-        }
-
-        if isvc.resources:
-            result["resources"] = {
-                "cpu_request": isvc.resources.cpu_request,
-                "cpu_limit": isvc.resources.cpu_limit,
-                "memory_request": isvc.resources.memory_request,
-                "memory_limit": isvc.resources.memory_limit,
-                "gpu_request": isvc.resources.gpu_request,
-                "gpu_limit": isvc.resources.gpu_limit,
-            }
-
-        if isvc.conditions:
-            result["conditions"] = [
-                {
-                    "type": c.type,
-                    "status": c.status,
-                    "reason": c.reason,
-                    "message": c.message,
-                }
-                for c in isvc.conditions
-            ]
-
-        return result
+        v = Verbosity.from_str(verbosity)
+        return ResponseBuilder.inference_service_detail(isvc, v)
 
     @mcp.tool()
     def deploy_model(

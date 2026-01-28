@@ -6,6 +6,12 @@ from mcp.server.fastmcp import FastMCP
 
 from rhoai_mcp.domains.projects.client import ProjectClient
 from rhoai_mcp.domains.projects.models import ProjectCreate
+from rhoai_mcp.utils.response import (
+    PaginatedResponse,
+    ResponseBuilder,
+    Verbosity,
+    paginate,
+)
 
 if TYPE_CHECKING:
     from rhoai_mcp.server import RHOAIServer
@@ -15,81 +21,66 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
     """Register project management tools with the MCP server."""
 
     @mcp.tool()
-    def list_data_science_projects() -> list[dict[str, Any]]:
-        """List all Data Science Projects in the cluster.
+    def list_data_science_projects(
+        limit: int | None = None,
+        offset: int = 0,
+        verbosity: str = "standard",
+    ) -> dict[str, Any]:
+        """List Data Science Projects in the cluster with pagination.
 
         Returns projects (namespaces) that have the opendatahub.io/dashboard=true label,
         indicating they are RHOAI Data Science Projects.
 
+        Args:
+            limit: Maximum number of items to return (None for all).
+            offset: Starting offset for pagination (default: 0).
+            verbosity: Response detail level - "minimal", "standard", or "full".
+                Use "minimal" for quick status checks (~87% token savings).
+
         Returns:
-            List of project information including name, display name, description,
-            model serving mode, and status.
+            Paginated list of projects with metadata.
         """
         client = ProjectClient(server.k8s)
         projects = client.list_projects()
-        return [
-            {
-                "name": p.metadata.name,
-                "display_name": p.display_name,
-                "description": p.description,
-                "requester": p.requester,
-                "is_modelmesh_enabled": p.is_modelmesh_enabled,
-                "status": p.status.value,
-                "created": (
-                    p.metadata.creation_timestamp.isoformat()
-                    if p.metadata.creation_timestamp
-                    else None
-                ),
-            }
-            for p in projects
-        ]
+
+        # Apply config limits
+        effective_limit = limit
+        if effective_limit is not None:
+            effective_limit = min(effective_limit, server.config.max_list_limit)
+        elif server.config.default_list_limit is not None:
+            effective_limit = server.config.default_list_limit
+
+        # Paginate
+        paginated, total = paginate(projects, offset, effective_limit)
+
+        # Format with verbosity
+        v = Verbosity.from_str(verbosity)
+        items = [ResponseBuilder.project_list_item(p, v) for p in paginated]
+
+        return PaginatedResponse.build(items, total, offset, effective_limit)
 
     @mcp.tool()
     def get_project_details(
         name: str,
         include_resources: bool = True,
+        verbosity: str = "full",
     ) -> dict[str, Any]:
         """Get detailed information about a Data Science Project.
 
         Args:
             name: The project (namespace) name.
             include_resources: Whether to include resource counts (workbenches, models, etc.).
+            verbosity: Response detail level - "minimal", "standard", or "full".
+                Use "minimal" for quick status checks.
 
         Returns:
-            Detailed project information including metadata, settings, and optionally
-            resource summary counts.
+            Project information at the requested verbosity level.
         """
         client = ProjectClient(server.k8s)
         project = client.get_project(name, include_summary=include_resources)
 
-        result: dict[str, Any] = {
-            "name": project.metadata.name,
-            "display_name": project.display_name,
-            "description": project.description,
-            "requester": project.requester,
-            "is_modelmesh_enabled": project.is_modelmesh_enabled,
-            "status": project.status.value,
-            "labels": project.metadata.labels,
-            "annotations": project.metadata.annotations,
-            "created": (
-                project.metadata.creation_timestamp.isoformat()
-                if project.metadata.creation_timestamp
-                else None
-            ),
-        }
-
-        if project.resource_summary:
-            result["resources"] = {
-                "workbenches": project.resource_summary.workbenches,
-                "workbenches_running": project.resource_summary.workbenches_running,
-                "models": project.resource_summary.models,
-                "models_ready": project.resource_summary.models_ready,
-                "pipelines": project.resource_summary.pipelines,
-                "data_connections": project.resource_summary.data_connections,
-                "storage": project.resource_summary.storage,
-            }
-
-        return result
+        v = Verbosity.from_str(verbosity)
+        return ResponseBuilder.project_detail(project, v)
 
     @mcp.tool()
     def create_data_science_project(
