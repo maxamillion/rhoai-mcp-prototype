@@ -14,6 +14,7 @@ An MCP (Model Context Protocol) server that enables AI agents to interact with R
 - **Project Management**: Create, list, and manage Data Science Projects
 - **Workbench Operations**: Create, start, stop, and delete Jupyter workbenches
 - **Model Serving**: Deploy and manage InferenceServices with KServe
+- **Model Catalog**: Discover and deploy models from the Red Hat model catalog
 - **Data Connections**: Manage S3 credentials for data access
 - **Pipelines**: Configure Data Science Pipelines infrastructure
 - **Storage**: Create and manage persistent volume claims
@@ -346,6 +347,13 @@ Note: The container uses `stdio` transport by default, which is required for Cla
 | `create_storage` | Create PVC |
 | `delete_storage` | Delete PVC (requires confirmation) |
 
+### Model Catalog (2 tools)
+
+| Tool | Description |
+|------|-------------|
+| `list_catalog_models` | List models from Red Hat catalog |
+| `deploy_from_catalog` | Deploy catalog model via vLLM |
+
 ## MCP Resources
 
 The server also exposes read-only resources:
@@ -400,6 +408,33 @@ Result:
 - Pipeline Server: Ready
 - Data Connections: 1
 - Storage: 3 PVCs
+```
+
+### Deploy from Model Catalog
+
+```
+User: What models are available in the catalog?
+
+Agent: Let me check the Red Hat model catalog for you.
+[Calls list_catalog_models]
+
+Result: Found 7 models:
+- granite-7b-redhat-lab (Red Hat) - Granite model for inference serving
+- granite-8b-starter-v1 (Red Hat) - Granite starter model
+- granite-8b-lab-v1 (Red Hat) - Granite LAB model
+- ... (4 more models)
+
+User: Deploy granite-7b-redhat-lab to my test-project
+
+Agent: I'll deploy that catalog model for you using vLLM runtime.
+[Calls deploy_from_catalog with catalog_model_name="granite-7b-redhat-lab",
+ deployment_name="granite-7b-redhat-lab", namespace="test-project", gpu_count=1]
+
+Result: Model 'granite-7b-redhat-lab' deployment initiated.
+- ServingRuntime: created
+- InferenceService: created
+- Model URI: oci://registry.redhat.io/rhelai1/modelcar-granite-7b-redhat-lab:1.4.0
+- Status: Pending (will be ready in a few minutes)
 ```
 
 ## Development

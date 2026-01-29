@@ -49,12 +49,13 @@ rules:
       - namespaces
       - pods
       - pods/log
+      - pods/exec
       - services
       - configmaps
       - secrets
       - persistentvolumeclaims
       - events
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list", "watch", "create"]
 
   # RHOAI / Open Data Hub resources
   - apiGroups: ["kubeflow.org"]
@@ -109,6 +110,12 @@ rules:
     resources:
       - projects
     verbs: ["get", "list", "watch"]
+
+  # OpenShift templates (for catalog deployment)
+  - apiGroups: ["template.openshift.io"]
+    resources:
+      - templates
+    verbs: ["get", "list"]
 
 ---
 # =============================================================================
