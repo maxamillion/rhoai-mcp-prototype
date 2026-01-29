@@ -553,6 +553,115 @@ class K8sClient:
                 raise NotFoundError("PersistentVolumeClaim", name, namespace)
             raise RHOAIError(f"Failed to delete PVC '{name}': {e.reason}")
 
+    # Pod operations
+    def exec_command(
+        self,
+        pod_name: str,
+        namespace: str,
+        command: list[str],
+        container: str | None = None,
+    ) -> str:
+        """Execute a command in a pod container.
+
+        Args:
+            pod_name: Name of the pod
+            namespace: Namespace containing the pod
+            command: Command to execute as a list of arguments
+            container: Optional container name (uses first container if not specified)
+
+        Returns:
+            Command output as a string
+
+        Raises:
+            NotFoundError: If pod is not found
+            RHOAIError: If command execution fails
+        """
+        # Import at method level to avoid global dependency
+        from kubernetes import stream
+
+        try:
+            kwargs: dict[str, Any] = {
+                "name": pod_name,
+                "namespace": namespace,
+                "command": command,
+                "stderr": True,
+                "stdin": False,
+                "stdout": True,
+                "tty": False,
+            }
+            if container:
+                kwargs["container"] = container
+
+            if not self._api_client:
+                raise RHOAIError("Client not connected. Call connect() first.")
+
+            response = stream.stream(
+                self.core_v1.connect_get_namespaced_pod_exec,
+                **kwargs,
+                _preload_content=False,
+            )
+
+            # Read all output
+            output = ""
+            while response.is_open():
+                response.update(timeout=1)
+                if response.peek_stdout():
+                    output += response.read_stdout()
+                if response.peek_stderr():
+                    output += response.read_stderr()
+
+            # Check exit code
+            error = response.read_channel(3)  # Error channel
+            if error:
+                error_data = eval(error)  # Parse error JSON
+                if error_data.get("status") == "Success":
+                    return output
+                raise RHOAIError(
+                    f"Command failed in pod '{pod_name}': {error_data.get('message', error)}"
+                )
+
+            return output
+
+        except ApiException as e:
+            if e.status == 404:
+                raise NotFoundError("Pod", pod_name, namespace)
+            raise RHOAIError(f"Failed to exec command in pod '{pod_name}': {e.reason}")
+        except Exception as e:
+            raise RHOAIError(f"Failed to exec command in pod '{pod_name}': {e}")
+
+    # Template operations
+    def get_template(self, name: str, namespace: str) -> dict[str, Any]:
+        """Get an OpenShift Template.
+
+        Args:
+            name: Name of the template
+            namespace: Namespace containing the template
+
+        Returns:
+            Template resource as a dictionary (full K8s object)
+
+        Raises:
+            NotFoundError: If template is not found
+            RHOAIError: If template retrieval fails
+        """
+        template_crd = CRDDefinition(
+            group="template.openshift.io",
+            version="v1",
+            plural="templates",
+            kind="Template",
+        )
+
+        try:
+            resource = self.get_resource(template_crd)
+            result = resource.get(name=name, namespace=namespace)
+            # Convert ResourceInstance to dict
+            template_dict: dict[str, Any] = result.to_dict()
+            return template_dict
+        except ApiException as e:
+            if e.status == 404:
+                raise NotFoundError("Template", name, namespace)
+            raise RHOAIError(f"Failed to get template '{name}': {e.reason}")
+
 
 @contextmanager
 def get_k8s_client(

@@ -236,6 +236,27 @@ class SummaryPlugin(BasePlugin):
         return True, "Summary tools use core domain clients"
 
 
+class CatalogPlugin(BasePlugin):
+    """Plugin for Model Catalog operations."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            PluginMetadata(
+                name="catalog",
+                version="0.1.0",
+                description="Model Catalog operations",
+                maintainer="rhoai-mcp@redhat.com",
+                requires_crds=[],
+            )
+        )
+
+    @hookimpl
+    def rhoai_register_tools(self, mcp: FastMCP, server: RHOAIServer) -> None:
+        from rhoai_mcp.domains.catalog.tools import register_tools
+
+        register_tools(mcp, server)
+
+
 def get_core_plugins() -> list[BasePlugin]:
     """Return all core domain plugin instances.
 
@@ -251,4 +272,5 @@ def get_core_plugins() -> list[BasePlugin]:
         StoragePlugin(),
         TrainingPlugin(),
         SummaryPlugin(),
+        CatalogPlugin(),
     ]
