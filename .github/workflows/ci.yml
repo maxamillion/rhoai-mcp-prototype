@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: Lint
@@ -18,19 +22,19 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          version: "latest"
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install 3.12
 
       - name: Install dependencies
-        run: uv sync --all-packages
+        run: uv sync
 
       - name: Run ruff check
-        run: uv run ruff check packages/
+        run: uv run ruff check src/
 
       - name: Run ruff format check
-        run: uv run ruff format --check packages/
+        run: uv run ruff format --check src/
 
   typecheck:
     name: Type Check
@@ -42,16 +46,16 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          version: "latest"
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install 3.12
 
       - name: Install dependencies
-        run: uv sync --all-packages
+        run: uv sync
 
       - name: Run mypy
-        run: uv run mypy packages/*/src
+        run: uv run mypy src/
 
   test:
     name: Test (Python ${{ matrix.python-version }})
@@ -68,142 +72,24 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          version: "latest"
+          enable-cache: true
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --all-packages
+        run: uv sync
 
-      - name: Run unit tests
-        run: uv run pytest packages/*/tests -v --tb=short
+      - name: Run tests with coverage
+        run: uv run pytest tests/ -v --tb=short --cov=src/rhoai_mcp --cov-report=xml --cov-report=term
 
-      - name: Run integration tests
-        run: uv run pytest tests/integration -v --tb=short
-
-  # Detect which packages changed to enable focused testing
-  changes:
-    name: Detect Changes
-    runs-on: ubuntu-latest
-    outputs:
-      core: ${{ steps.filter.outputs.core }}
-      notebooks: ${{ steps.filter.outputs.notebooks }}
-      inference: ${{ steps.filter.outputs.inference }}
-      pipelines: ${{ steps.filter.outputs.pipelines }}
-      connections: ${{ steps.filter.outputs.connections }}
-      storage: ${{ steps.filter.outputs.storage }}
-      projects: ${{ steps.filter.outputs.projects }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Check for changed files
-        uses: dorny/paths-filter@v3
-        id: filter
+      - name: Upload coverage report
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
         with:
-          filters: |
-            core:
-              - 'packages/core/**'
-            notebooks:
-              - 'packages/notebooks/**'
-            inference:
-              - 'packages/inference/**'
-            pipelines:
-              - 'packages/pipelines/**'
-            connections:
-              - 'packages/connections/**'
-            storage:
-              - 'packages/storage/**'
-            projects:
-              - 'packages/projects/**'
+          name: coverage-report
+          path: coverage.xml
 
-  # Component-specific test jobs (only run when component changes)
-  test-core:
-    name: Test Core Package
-    needs: changes
-    if: needs.changes.outputs.core == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - run: uv python install 3.12
-      - run: uv sync --all-packages
-      - run: uv run pytest packages/core/tests -v
-
-  test-notebooks:
-    name: Test Notebooks Package
-    needs: changes
-    if: needs.changes.outputs.notebooks == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - run: uv python install 3.12
-      - run: uv sync --all-packages
-      - run: uv run pytest packages/notebooks/tests -v
-
-  test-inference:
-    name: Test Inference Package
-    needs: changes
-    if: needs.changes.outputs.inference == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - run: uv python install 3.12
-      - run: uv sync --all-packages
-      - run: uv run pytest packages/inference/tests -v
-
-  test-pipelines:
-    name: Test Pipelines Package
-    needs: changes
-    if: needs.changes.outputs.pipelines == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - run: uv python install 3.12
-      - run: uv sync --all-packages
-      - run: uv run pytest packages/pipelines/tests -v
-
-  test-connections:
-    name: Test Connections Package
-    needs: changes
-    if: needs.changes.outputs.connections == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - run: uv python install 3.12
-      - run: uv sync --all-packages
-      - run: uv run pytest packages/connections/tests -v
-
-  test-storage:
-    name: Test Storage Package
-    needs: changes
-    if: needs.changes.outputs.storage == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - run: uv python install 3.12
-      - run: uv sync --all-packages
-      - run: uv run pytest packages/storage/tests -v
-
-  test-projects:
-    name: Test Projects Package
-    needs: changes
-    if: needs.changes.outputs.projects == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - run: uv python install 3.12
-      - run: uv sync --all-packages
-      - run: uv run pytest packages/projects/tests -v
-
-  # Final status check for branch protection
   ci-status:
     name: CI Status
     if: always()

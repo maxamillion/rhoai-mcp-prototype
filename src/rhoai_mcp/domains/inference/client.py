@@ -21,7 +21,9 @@ class InferenceClient:
     def list_inference_services(self, namespace: str) -> list[dict[str, Any]]:
         """List all InferenceServices in a namespace."""
         try:
-            isvc_list = self._k8s.list_resources(InferenceCRDs.INFERENCE_SERVICE, namespace=namespace)
+            isvc_list = self._k8s.list_resources(
+                InferenceCRDs.INFERENCE_SERVICE, namespace=namespace
+            )
         except Exception:
             return []
 

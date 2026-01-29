@@ -243,9 +243,7 @@ class ResponseBuilder:
             "is_modelmesh_enabled": p.is_modelmesh_enabled,
             "status": p.status.value,
             "created": (
-                p.metadata.creation_timestamp.isoformat()
-                if p.metadata.creation_timestamp
-                else None
+                p.metadata.creation_timestamp.isoformat() if p.metadata.creation_timestamp else None
             ),
         }
 
