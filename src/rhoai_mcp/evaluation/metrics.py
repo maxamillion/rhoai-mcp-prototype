@@ -1,14 +1,15 @@
 """Evaluation metrics for the evaluation harness.
 
-This module defines the metrics dataclasses used for tracking
+This module defines the metrics models used for tracking
 performance across six evaluation dimensions.
 """
 
 from __future__ import annotations
 
 import statistics
-from dataclasses import dataclass, field
 from typing import Any
+
+from pydantic import BaseModel, Field
 
 from rhoai_mcp.evaluation.models import (
     EvaluationSession,
@@ -19,38 +20,24 @@ from rhoai_mcp.evaluation.models import (
 )
 
 
-@dataclass
-class StabilityMetrics:
+class StabilityMetrics(BaseModel):
     """Measures whether tools work reliably across repeated invocations.
 
     Tracks success rates, error distributions, and consistency
     of repeated calls.
     """
 
-    total_calls: int
-    """Total number of tool calls."""
-
-    successful_calls: int
-    """Number of successful calls."""
-
-    stability_score: float
-    """Percentage of calls that complete without exceptions (0.0-1.0)."""
-
-    error_types: dict[str, int] = field(default_factory=dict)
-    """Distribution of error types encountered."""
-
-    repeated_call_consistency: float = 1.0
-    """Percentage of repeated calls with consistent results (0.0-1.0)."""
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
-        return {
-            "total_calls": self.total_calls,
-            "successful_calls": self.successful_calls,
-            "stability_score": self.stability_score,
-            "error_types": self.error_types,
-            "repeated_call_consistency": self.repeated_call_consistency,
-        }
+    total_calls: int = Field(..., description="Total number of tool calls")
+    successful_calls: int = Field(..., description="Number of successful calls")
+    stability_score: float = Field(
+        ..., description="Percentage of calls that complete without exceptions (0.0-1.0)"
+    )
+    error_types: dict[str, int] = Field(
+        default_factory=dict, description="Distribution of error types encountered"
+    )
+    repeated_call_consistency: float = Field(
+        1.0, description="Percentage of repeated calls with consistent results (0.0-1.0)"
+    )
 
     @classmethod
     def from_tool_calls(cls, calls: list[ToolCall]) -> StabilityMetrics:
@@ -86,50 +73,23 @@ class StabilityMetrics:
         )
 
 
-@dataclass
-class PerformanceMetrics:
+class PerformanceMetrics(BaseModel):
     """Measures latency and throughput characteristics.
 
     Tracks timing statistics across tool calls including
     percentiles and throughput.
     """
 
-    latency_p50_ms: float
-    """50th percentile latency in milliseconds."""
-
-    latency_p95_ms: float
-    """95th percentile latency in milliseconds."""
-
-    latency_p99_ms: float
-    """99th percentile latency in milliseconds."""
-
-    avg_duration_ms: float
-    """Mean execution time in milliseconds."""
-
-    max_duration_ms: float
-    """Maximum execution time in milliseconds."""
-
-    min_duration_ms: float
-    """Minimum execution time in milliseconds."""
-
-    total_duration_ms: float
-    """Total execution time in milliseconds."""
-
-    calls_per_second: float
-    """Throughput (tool_count / session_duration_seconds)."""
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
-        return {
-            "latency_p50_ms": self.latency_p50_ms,
-            "latency_p95_ms": self.latency_p95_ms,
-            "latency_p99_ms": self.latency_p99_ms,
-            "avg_duration_ms": self.avg_duration_ms,
-            "max_duration_ms": self.max_duration_ms,
-            "min_duration_ms": self.min_duration_ms,
-            "total_duration_ms": self.total_duration_ms,
-            "calls_per_second": self.calls_per_second,
-        }
+    latency_p50_ms: float = Field(..., description="50th percentile latency in milliseconds")
+    latency_p95_ms: float = Field(..., description="95th percentile latency in milliseconds")
+    latency_p99_ms: float = Field(..., description="99th percentile latency in milliseconds")
+    avg_duration_ms: float = Field(..., description="Mean execution time in milliseconds")
+    max_duration_ms: float = Field(..., description="Maximum execution time in milliseconds")
+    min_duration_ms: float = Field(..., description="Minimum execution time in milliseconds")
+    total_duration_ms: float = Field(..., description="Total execution time in milliseconds")
+    calls_per_second: float = Field(
+        ..., description="Throughput (tool_count / session_duration_seconds)"
+    )
 
     @classmethod
     def from_tool_calls(
@@ -173,42 +133,23 @@ class PerformanceMetrics:
         )
 
 
-@dataclass
-class ToolSelectionMetrics:
+class ToolSelectionMetrics(BaseModel):
     """Measures whether the agent chose appropriate tools.
 
     Tracks coverage of required tools, violations of forbidden
     tools, and order compliance.
     """
 
-    required_tools_called: int
-    """Number of required tools that were called."""
-
-    required_tools_total: int
-    """Total number of required tools."""
-
-    required_coverage: float
-    """Percentage of required tools called (0.0-1.0)."""
-
-    forbidden_tool_violations: list[str] = field(default_factory=list)
-    """Forbidden tools that were called."""
-
-    order_violations: int = 0
-    """Number of out-of-order calls."""
-
-    redundant_calls: int = 0
-    """Calls not in required or optional sets."""
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
-        return {
-            "required_tools_called": self.required_tools_called,
-            "required_tools_total": self.required_tools_total,
-            "required_coverage": self.required_coverage,
-            "forbidden_tool_violations": self.forbidden_tool_violations,
-            "order_violations": self.order_violations,
-            "redundant_calls": self.redundant_calls,
-        }
+    required_tools_called: int = Field(..., description="Number of required tools that were called")
+    required_tools_total: int = Field(..., description="Total number of required tools")
+    required_coverage: float = Field(
+        ..., description="Percentage of required tools called (0.0-1.0)"
+    )
+    forbidden_tool_violations: list[str] = Field(
+        default_factory=list, description="Forbidden tools that were called"
+    )
+    order_violations: int = Field(0, description="Number of out-of-order calls")
+    redundant_calls: int = Field(0, description="Calls not in required or optional sets")
 
     @classmethod
     def from_session(
@@ -256,42 +197,21 @@ class ToolSelectionMetrics:
         )
 
 
-@dataclass
-class SuccessErrorMetrics:
+class SuccessErrorMetrics(BaseModel):
     """Measures overall reliability of tool execution.
 
     Tracks success/error counts, categorizes errors, and
     monitors retry behavior.
     """
 
-    success_count: int
-    """Number of successful tool calls."""
-
-    error_count: int
-    """Number of failed tool calls."""
-
-    success_rate: float
-    """Percentage of successful calls (0.0-1.0)."""
-
-    error_categories: dict[str, int] = field(default_factory=dict)
-    """Distribution of error categories."""
-
-    retry_attempts: int = 0
-    """Number of retries (same tool called after failure)."""
-
-    retry_success_rate: float = 0.0
-    """Percentage of successful retries (0.0-1.0)."""
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
-        return {
-            "success_count": self.success_count,
-            "error_count": self.error_count,
-            "success_rate": self.success_rate,
-            "error_categories": self.error_categories,
-            "retry_attempts": self.retry_attempts,
-            "retry_success_rate": self.retry_success_rate,
-        }
+    success_count: int = Field(..., description="Number of successful tool calls")
+    error_count: int = Field(..., description="Number of failed tool calls")
+    success_rate: float = Field(..., description="Percentage of successful calls (0.0-1.0)")
+    error_categories: dict[str, int] = Field(
+        default_factory=dict, description="Distribution of error categories"
+    )
+    retry_attempts: int = Field(0, description="Number of retries (same tool called after failure)")
+    retry_success_rate: float = Field(0.0, description="Percentage of successful retries (0.0-1.0)")
 
     @classmethod
     def from_tool_calls(cls, calls: list[ToolCall]) -> SuccessErrorMetrics:
@@ -329,46 +249,28 @@ class SuccessErrorMetrics:
         )
 
 
-@dataclass
-class ParameterPrecisionMetrics:
+class ParameterPrecisionMetrics(BaseModel):
     """Measures whether tool parameters are correctly formed.
 
     Tracks schema compliance, type correctness, and value
     validity of tool parameters.
     """
 
-    total_parameters: int
-    """Total number of parameters validated."""
-
-    valid_parameters: int
-    """Number of parameters that passed validation."""
-
-    precision_score: float
-    """Percentage of valid parameters (0.0-1.0)."""
-
-    type_errors: list[dict[str, Any]] = field(default_factory=list)
-    """Parameters with wrong types."""
-
-    missing_required: list[str] = field(default_factory=list)
-    """Required parameters not provided."""
-
-    out_of_range: list[dict[str, Any]] = field(default_factory=list)
-    """Parameters outside expected range."""
-
-    pattern_mismatches: list[dict[str, Any]] = field(default_factory=list)
-    """Parameters not matching regex patterns."""
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
-        return {
-            "total_parameters": self.total_parameters,
-            "valid_parameters": self.valid_parameters,
-            "precision_score": self.precision_score,
-            "type_errors": self.type_errors,
-            "missing_required": self.missing_required,
-            "out_of_range": self.out_of_range,
-            "pattern_mismatches": self.pattern_mismatches,
-        }
+    total_parameters: int = Field(..., description="Total number of parameters validated")
+    valid_parameters: int = Field(..., description="Number of parameters that passed validation")
+    precision_score: float = Field(..., description="Percentage of valid parameters (0.0-1.0)")
+    type_errors: list[dict[str, Any]] = Field(
+        default_factory=list, description="Parameters with wrong types"
+    )
+    missing_required: list[str] = Field(
+        default_factory=list, description="Required parameters not provided"
+    )
+    out_of_range: list[dict[str, Any]] = Field(
+        default_factory=list, description="Parameters outside expected range"
+    )
+    pattern_mismatches: list[dict[str, Any]] = Field(
+        default_factory=list, description="Parameters not matching regex patterns"
+    )
 
     @classmethod
     def from_session(cls, session: EvaluationSession) -> ParameterPrecisionMetrics:
@@ -417,58 +319,29 @@ class ParameterPrecisionMetrics:
         )
 
 
-@dataclass
-class TrajectoryMetrics:
+class TrajectoryMetrics(BaseModel):
     """Evaluates the entire sequence of tool calls as a trajectory.
 
     Tracks efficiency, goal achievement, and trajectory
     similarity to optimal paths.
     """
 
-    total_steps: int
-    """Total number of steps taken."""
-
-    optimal_steps: int
-    """Number of steps in optimal trajectory."""
-
-    efficiency_score: float
-    """Ratio of optimal to actual steps (capped at 1.0)."""
-
-    goal_achieved: bool
-    """Whether the ultimate task was accomplished."""
-
-    trajectory_similarity: float
-    """Similarity to optimal trajectory (0.0-1.0)."""
-
-    checkpoints_hit: int = 0
-    """Number of required checkpoints reached."""
-
-    checkpoints_total: int = 0
-    """Total number of required checkpoints."""
-
-    checkpoint_coverage: float = 1.0
-    """Percentage of checkpoints hit (0.0-1.0)."""
-
-    unnecessary_steps: list[str] = field(default_factory=list)
-    """Steps not in any acceptable trajectory."""
-
-    backtracking_count: int = 0
-    """Times agent repeated earlier steps."""
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
-        return {
-            "total_steps": self.total_steps,
-            "optimal_steps": self.optimal_steps,
-            "efficiency_score": self.efficiency_score,
-            "goal_achieved": self.goal_achieved,
-            "trajectory_similarity": self.trajectory_similarity,
-            "checkpoints_hit": self.checkpoints_hit,
-            "checkpoints_total": self.checkpoints_total,
-            "checkpoint_coverage": self.checkpoint_coverage,
-            "unnecessary_steps": self.unnecessary_steps,
-            "backtracking_count": self.backtracking_count,
-        }
+    total_steps: int = Field(..., description="Total number of steps taken")
+    optimal_steps: int = Field(..., description="Number of steps in optimal trajectory")
+    efficiency_score: float = Field(
+        ..., description="Ratio of optimal to actual steps (capped at 1.0)"
+    )
+    goal_achieved: bool = Field(..., description="Whether the ultimate task was accomplished")
+    trajectory_similarity: float = Field(
+        ..., description="Similarity to optimal trajectory (0.0-1.0)"
+    )
+    checkpoints_hit: int = Field(0, description="Number of required checkpoints reached")
+    checkpoints_total: int = Field(0, description="Total number of required checkpoints")
+    checkpoint_coverage: float = Field(1.0, description="Percentage of checkpoints hit (0.0-1.0)")
+    unnecessary_steps: list[str] = Field(
+        default_factory=list, description="Steps not in any acceptable trajectory"
+    )
+    backtracking_count: int = Field(0, description="Times agent repeated earlier steps")
 
     @classmethod
     def from_session(

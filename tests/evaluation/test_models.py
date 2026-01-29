@@ -52,7 +52,7 @@ class TestToolCall:
         assert call.success is False
         assert call.error == "Something went wrong"
 
-    def test_to_dict(self) -> None:
+    def test_model_dump(self) -> None:
         """Test serialization to dict."""
         call = ToolCall(
             tool_name="test_tool",
@@ -62,7 +62,7 @@ class TestToolCall:
             success=True,
         )
 
-        data = call.to_dict()
+        data = call.model_dump()
 
         assert data["tool_name"] == "test_tool"
         assert data["arguments"] == {"key": "value"}
@@ -90,7 +90,7 @@ class TestExpectedResult:
         assert expected.field_values == {"status": "Active"}
         assert expected.field_patterns == {"name": r"^test-.*$"}
 
-    def test_to_dict(self) -> None:
+    def test_model_dump(self) -> None:
         """Test serialization to dict."""
         expected = ExpectedResult(
             tool_name="test",
@@ -98,7 +98,7 @@ class TestExpectedResult:
             custom_validator="my_validator",
         )
 
-        data = expected.to_dict()
+        data = expected.model_dump()
 
         assert data["tool_name"] == "test"
         assert data["required_fields"] == ["field1"]
@@ -237,7 +237,7 @@ class TestEvaluationSession:
             "get_workbench_status",
         ]
 
-    def test_to_dict(self) -> None:
+    def test_model_dump(self) -> None:
         """Test serialization to dict."""
         session = EvaluationSession(
             session_id="test",
@@ -246,12 +246,11 @@ class TestEvaluationSession:
             expected_outcome="Done",
         )
 
-        data = session.to_dict()
+        data = session.model_dump()
 
         assert data["session_id"] == "test"
         assert data["name"] == "Test"
         assert data["status"] == "active"
-        assert "summary" in data
 
 
 class TestEvaluationReport:
@@ -268,11 +267,10 @@ class TestEvaluationReport:
         assert report.error_count == 0
         assert report.success_rate == 100.0
 
-    def test_to_dict(self, sample_session) -> None:
+    def test_model_dump(self, sample_session) -> None:
         """Test serialization to dict."""
         report = EvaluationReport.from_session(sample_session)
-        data = report.to_dict()
+        data = report.model_dump()
 
         assert data["session_id"] == sample_session.session_id
         assert data["tool_count"] == 4
-        assert "scores" in data

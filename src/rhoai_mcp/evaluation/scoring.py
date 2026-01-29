@@ -6,8 +6,9 @@ scores from individual metrics.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any
+
+from pydantic import BaseModel, Field
 
 from rhoai_mcp.evaluation.metrics import (
     ParameterPrecisionMetrics,
@@ -20,8 +21,7 @@ from rhoai_mcp.evaluation.metrics import (
 from rhoai_mcp.evaluation.models import EvaluationSession
 
 
-@dataclass
-class CompositeEvaluationScore:
+class CompositeEvaluationScore(BaseModel):
     """Overall evaluation combining all criteria.
 
     Provides individual dimension scores and a weighted composite
@@ -29,45 +29,46 @@ class CompositeEvaluationScore:
     """
 
     # Individual scores (0.0 - 1.0)
-    stability_score: float
-    """Stability dimension score."""
-
-    performance_score: float
-    """Performance dimension score."""
-
-    tool_selection_score: float
-    """Tool selection dimension score."""
-
-    success_rate_score: float
-    """Success rate dimension score."""
-
-    parameter_precision_score: float
-    """Parameter precision dimension score."""
-
-    trajectory_score: float
-    """Trajectory dimension score."""
+    stability_score: float = Field(..., description="Stability dimension score")
+    performance_score: float = Field(..., description="Performance dimension score")
+    tool_selection_score: float = Field(..., description="Tool selection dimension score")
+    success_rate_score: float = Field(..., description="Success rate dimension score")
+    parameter_precision_score: float = Field(..., description="Parameter precision dimension score")
+    trajectory_score: float = Field(..., description="Trajectory dimension score")
 
     # Weighted composite
-    overall_score: float
-    """Weighted composite score (0.0 - 1.0)."""
+    overall_score: float = Field(..., description="Weighted composite score (0.0 - 1.0)")
 
     # Grade (A/B/C/D/F)
-    grade: str
-    """Letter grade based on overall score."""
+    grade: str = Field(..., description="Letter grade based on overall score")
 
     # Individual metrics for reference
-    stability_metrics: StabilityMetrics | None = None
-    performance_metrics: PerformanceMetrics | None = None
-    tool_selection_metrics: ToolSelectionMetrics | None = None
-    success_error_metrics: SuccessErrorMetrics | None = None
-    parameter_precision_metrics: ParameterPrecisionMetrics | None = None
-    trajectory_metrics: TrajectoryMetrics | None = None
+    stability_metrics: StabilityMetrics | None = Field(
+        None, description="Stability metrics details"
+    )
+    performance_metrics: PerformanceMetrics | None = Field(
+        None, description="Performance metrics details"
+    )
+    tool_selection_metrics: ToolSelectionMetrics | None = Field(
+        None, description="Tool selection metrics details"
+    )
+    success_error_metrics: SuccessErrorMetrics | None = Field(
+        None, description="Success/error metrics details"
+    )
+    parameter_precision_metrics: ParameterPrecisionMetrics | None = Field(
+        None, description="Parameter precision metrics details"
+    )
+    trajectory_metrics: TrajectoryMetrics | None = Field(
+        None, description="Trajectory metrics details"
+    )
 
     # Weights used
-    weights: dict[str, float] = field(default_factory=dict)
+    weights: dict[str, float] = Field(default_factory=dict, description="Weights used for scoring")
 
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+        """Override model_dump to provide structured output format."""
+        # Ignore kwargs - we always return our custom structure
+        _ = kwargs
         return {
             "scores": {
                 "stability": self.stability_score,
@@ -81,23 +82,27 @@ class CompositeEvaluationScore:
             "grade": self.grade,
             "weights": self.weights,
             "metrics": {
-                "stability": self.stability_metrics.to_dict() if self.stability_metrics else None,
+                "stability": (
+                    self.stability_metrics.model_dump() if self.stability_metrics else None
+                ),
                 "performance": (
-                    self.performance_metrics.to_dict() if self.performance_metrics else None
+                    self.performance_metrics.model_dump() if self.performance_metrics else None
                 ),
                 "tool_selection": (
-                    self.tool_selection_metrics.to_dict() if self.tool_selection_metrics else None
+                    self.tool_selection_metrics.model_dump()
+                    if self.tool_selection_metrics
+                    else None
                 ),
                 "success_error": (
-                    self.success_error_metrics.to_dict() if self.success_error_metrics else None
+                    self.success_error_metrics.model_dump() if self.success_error_metrics else None
                 ),
                 "parameter_precision": (
-                    self.parameter_precision_metrics.to_dict()
+                    self.parameter_precision_metrics.model_dump()
                     if self.parameter_precision_metrics
                     else None
                 ),
                 "trajectory": (
-                    self.trajectory_metrics.to_dict() if self.trajectory_metrics else None
+                    self.trajectory_metrics.model_dump() if self.trajectory_metrics else None
                 ),
             },
         }

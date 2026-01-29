@@ -1,5 +1,7 @@
 # RHOAI MCP Server
 
+[![CI](https://github.com/admiller/rhoai-mcp-prototype/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/admiller/rhoai-mcp-prototype/actions/workflows/ci.yml)
+[![Container Build](https://github.com/admiller/rhoai-mcp-prototype/actions/workflows/container-build.yml/badge.svg)](https://github.com/admiller/rhoai-mcp-prototype/actions/workflows/container-build.yml)
 [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/admiller/rhoai-mcp-prototype)
 [![Status](https://img.shields.io/badge/status-alpha-orange.svg)](https://github.com/admiller/rhoai-mcp-prototype)
 [![Python](https://img.shields.io/badge/python-3.10%2B-green.svg)](https://www.python.org/)
@@ -177,6 +179,24 @@ export RHOAI_MCP_READ_ONLY_MODE=true
 | **RBAC-Aware** | Uses OpenShift Projects API to respect user permissions | Always |
 | **Auth Validation** | Validates authentication configuration at startup | Always |
 
+## Usage with Claude Code
+
+Add to your project's `.mcp.json` file:
+
+```json
+{
+  "mcpServers": {
+    "rhoai": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/opendatahub-io/rhoai-mcp", "rhoai-mcp"],
+      "env": {
+        "RHOAI_MCP_KUBECONFIG_PATH": "/home/user/.kube/config"
+      }
+    }
+  }
+}
+```
+
 ## Usage with Claude Desktop
 
 Add to your Claude Desktop configuration (`~/.config/claude/claude_desktop_config.json`):
@@ -185,8 +205,8 @@ Add to your Claude Desktop configuration (`~/.config/claude/claude_desktop_confi
 {
   "mcpServers": {
     "rhoai": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/rhoai-mcp-prototype", "rhoai-mcp"],
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/opendatahub-io/rhoai-mcp", "rhoai-mcp"],
       "env": {
         "RHOAI_MCP_KUBECONFIG_PATH": "/home/user/.kube/config"
       }
@@ -195,13 +215,16 @@ Add to your Claude Desktop configuration (`~/.config/claude/claude_desktop_confi
 }
 ```
 
-Or with an installed package:
+### Local Development
+
+For contributors working with a local clone:
 
 ```json
 {
   "mcpServers": {
     "rhoai": {
-      "command": "rhoai-mcp",
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/rhoai-mcp", "rhoai-mcp"],
       "env": {
         "RHOAI_MCP_KUBECONFIG_PATH": "/home/user/.kube/config"
       }
@@ -209,6 +232,57 @@ Or with an installed package:
   }
 }
 ```
+
+### Using Container Image (Podman/Docker)
+
+First, build the container image:
+
+```bash
+make build
+```
+
+Then configure Claude Desktop with the container:
+
+**Podman:**
+
+```json
+{
+  "mcpServers": {
+    "rhoai": {
+      "command": "podman",
+      "args": [
+        "run", "-i", "--rm",
+        "--userns=keep-id",
+        "-v", "${HOME}/.kube/config:/opt/app-root/src/kubeconfig/config:ro",
+        "-e", "RHOAI_MCP_AUTH_MODE=kubeconfig",
+        "-e", "RHOAI_MCP_KUBECONFIG_PATH=/opt/app-root/src/kubeconfig/config",
+        "rhoai-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+**Docker:**
+
+```json
+{
+  "mcpServers": {
+    "rhoai": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-v", "${HOME}/.kube/config:/opt/app-root/src/kubeconfig/config:ro",
+        "-e", "RHOAI_MCP_AUTH_MODE=kubeconfig",
+        "-e", "RHOAI_MCP_KUBECONFIG_PATH=/opt/app-root/src/kubeconfig/config",
+        "rhoai-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+Note: The container uses `stdio` transport by default, which is required for Claude Desktop integration.
 
 ## Available Tools
 

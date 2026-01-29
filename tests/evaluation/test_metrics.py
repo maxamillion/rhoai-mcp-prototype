@@ -49,10 +49,10 @@ class TestStabilityMetrics:
         assert metrics.stability_score == 0.5
         assert "not_found" in metrics.error_types
 
-    def test_to_dict(self, sample_tool_calls) -> None:
+    def test_model_dump(self, sample_tool_calls) -> None:
         """Test serialization to dict."""
         metrics = StabilityMetrics.from_tool_calls(sample_tool_calls)
-        data = metrics.to_dict()
+        data = metrics.model_dump()
 
         assert data["total_calls"] == 4
         assert data["stability_score"] == 1.0

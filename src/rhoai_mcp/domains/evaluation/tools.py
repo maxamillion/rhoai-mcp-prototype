@@ -148,7 +148,7 @@ def register_tools(
                 session_id=session_id,
                 validator=validator,
             )
-            return report.to_dict()
+            return report.model_dump()
         except ValueError as e:
             return {"error": str(e)}
 
@@ -181,7 +181,7 @@ def register_tools(
             return {"error": f"Session '{sid}' not found"}
 
         score = calculate_score_from_session(session, weights=weights)
-        return score.to_dict()
+        return score.model_dump()
 
     @mcp.tool()
     def eval_list_sessions(
@@ -275,7 +275,7 @@ def register_tools(
             )
             return {
                 "added": True,
-                "expected_result": expected.to_dict(),
+                "expected_result": expected.model_dump(),
             }
         except ValueError as e:
             return {"error": str(e)}
@@ -314,7 +314,7 @@ def register_tools(
             )
             return {
                 "set": True,
-                "expected_sequence": sequence.to_dict(),
+                "expected_sequence": sequence.model_dump(),
             }
         except ValueError as e:
             return {"error": str(e)}
@@ -355,7 +355,7 @@ def register_tools(
             )
             return {
                 "set": True,
-                "trajectory_spec": spec.to_dict(),
+                "trajectory_spec": spec.model_dump(),
             }
         except ValueError as e:
             return {"error": str(e)}
@@ -396,7 +396,7 @@ def register_tools(
                 "set": True,
                 "tool_name": tool_name,
                 "parameter_count": len(specs),
-                "parameters": [s.to_dict() for s in specs],
+                "parameters": [s.model_dump() for s in specs],
             }
         except ValueError as e:
             return {"error": str(e)}
@@ -474,7 +474,7 @@ def register_tools(
             return {"error": f"Session '{sid}' not found"}
 
         metrics = StabilityMetrics.from_tool_calls(session.tool_calls)
-        return {"session_id": sid, "metrics": metrics.to_dict()}
+        return {"session_id": sid, "metrics": metrics.model_dump()}
 
     @mcp.tool()
     def eval_get_performance_metrics(session_id: str | None = None) -> dict[str, Any]:
@@ -500,7 +500,7 @@ def register_tools(
             return {"error": f"Session '{sid}' not found"}
 
         metrics = PerformanceMetrics.from_tool_calls(session.tool_calls, session.duration_seconds())
-        return {"session_id": sid, "metrics": metrics.to_dict()}
+        return {"session_id": sid, "metrics": metrics.model_dump()}
 
     @mcp.tool()
     def eval_get_trajectory_analysis(session_id: str | None = None) -> dict[str, Any]:
@@ -527,4 +527,4 @@ def register_tools(
             return {"error": f"Session '{sid}' not found"}
 
         metrics = TrajectoryMetrics.from_session(session)
-        return {"session_id": sid, "metrics": metrics.to_dict()}
+        return {"session_id": sid, "metrics": metrics.model_dump()}

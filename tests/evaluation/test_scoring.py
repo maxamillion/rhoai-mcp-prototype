@@ -203,7 +203,7 @@ class TestCalculateCompositeScore:
 
         assert score.overall_score == 0.0  # Only stability matters, and it's 0
 
-    def test_to_dict(self) -> None:
+    def test_model_dump(self) -> None:
         """Test score serialization."""
         stability = StabilityMetrics(
             total_calls=10,
@@ -253,7 +253,7 @@ class TestCalculateCompositeScore:
             trajectory=trajectory,
         )
 
-        data = score.to_dict()
+        data = score.model_dump()
 
         assert "scores" in data
         assert "overall_score" in data
