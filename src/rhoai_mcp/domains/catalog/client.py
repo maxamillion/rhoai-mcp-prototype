@@ -55,6 +55,7 @@ class CatalogClient:
                 pod_name=pod_name,
                 namespace=namespace,
                 command=["cat", "/shared-data/models-catalog.yaml"],
+                container="catalog",  # Specify catalog container (pod has multiple containers)
             )
         except Exception as e:
             raise RHOAIError(f"Failed to read catalog file from pod '{pod_name}': {e}")
