@@ -32,6 +32,7 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
         runtimes,
         storage,
         training,
+        unified,
     )
 
     # Register tools from each submodule
@@ -42,3 +43,4 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
     runtimes.register_tools(mcp, server)
     storage.register_tools(mcp, server)
     training.register_tools(mcp, server)
+    unified.register_tools(mcp, server)

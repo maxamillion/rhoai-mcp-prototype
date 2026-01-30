@@ -236,6 +236,41 @@ class SummaryPlugin(BasePlugin):
         return True, "Summary tools use core domain clients"
 
 
+class MetaPlugin(BasePlugin):
+    """Plugin for tool discovery and workflow guidance.
+
+    Provides meta-tools that help AI agents discover the right tools
+    for their tasks and understand typical workflows.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            PluginMetadata(
+                name="meta",
+                version="1.0.0",
+                description="Tool discovery and workflow guidance",
+                maintainer="rhoai-mcp@redhat.com",
+                requires_crds=[],
+            )
+        )
+
+    @hookimpl
+    def rhoai_register_tools(self, mcp: FastMCP, server: RHOAIServer) -> None:
+        from rhoai_mcp.domains.meta.tools import register_tools
+
+        register_tools(mcp, server)
+
+    @hookimpl
+    def rhoai_register_resources(self, mcp: FastMCP, server: RHOAIServer) -> None:
+        from rhoai_mcp.domains.meta.resources import register_resources
+
+        register_resources(mcp, server)
+
+    @hookimpl
+    def rhoai_health_check(self, server: RHOAIServer) -> tuple[bool, str]:  # noqa: ARG002
+        return True, "Meta tools require no external dependencies"
+
+
 def get_core_plugins() -> list[BasePlugin]:
     """Return all core domain plugin instances.
 
@@ -251,4 +286,5 @@ def get_core_plugins() -> list[BasePlugin]:
         StoragePlugin(),
         TrainingPlugin(),
         SummaryPlugin(),
+        MetaPlugin(),
     ]

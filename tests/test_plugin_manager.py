@@ -219,9 +219,9 @@ class TestPluginManager:
         pm = PluginManager()
         count = pm.load_core_plugins()
 
-        # Should load all 8 core domain plugins
-        assert count == 8
-        assert len(pm.registered_plugins) == 8
+        # Should load all 9 core domain plugins
+        assert count == 9
+        assert len(pm.registered_plugins) == 9
 
         # Verify expected plugins are loaded
         expected = {
@@ -233,5 +233,6 @@ class TestPluginManager:
             "storage",
             "training",
             "summary",
+            "meta",
         }
         assert set(pm.registered_plugins.keys()) == expected

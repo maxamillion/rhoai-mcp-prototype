@@ -447,6 +447,198 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
                 "error": f"Failed to create secret: {e}",
             }
 
+    @mcp.tool()
+    def prepare_training(
+        namespace: str,
+        model_id: str,
+        dataset_id: str,
+        runtime_name: str | None = None,
+        method: str = "lora",
+        create_storage: bool = True,
+        storage_size_gb: int = 100,
+    ) -> dict[str, Any]:
+        """Complete pre-flight setup for a training job in a single call.
+
+        This composite tool combines resource estimation, prerequisite checking,
+        configuration validation, and optional storage creation. Use this before
+        calling train() to ensure everything is ready.
+
+        Args:
+            namespace: The namespace for the training job.
+            model_id: Model identifier (e.g., "meta-llama/Llama-2-7b-hf").
+            dataset_id: Dataset identifier (e.g., "tatsu-lab/alpaca").
+            runtime_name: Training runtime to use (auto-selected if None).
+            method: Fine-tuning method: "lora", "qlora", "dora", or "full".
+            create_storage: Whether to create checkpoint storage if needed.
+            storage_size_gb: Size of checkpoint storage in GB.
+
+        Returns:
+            Complete preparation result with:
+            - ready: Whether training can proceed
+            - issues: List of problems found
+            - resource_estimate: GPU/memory requirements
+            - recommended_runtime: Runtime to use
+            - storage_created: Whether storage was created
+            - next_action: "train" or "fix_issues"
+            - suggested_train_params: Parameters for train() call
+        """
+        issues: list[str] = []
+        warnings: list[str] = []
+        storage_created = False
+        recommended_runtime = runtime_name
+
+        # Step 1: Estimate resources
+        resource_estimate = _estimate_resources_internal(model_id, method)
+
+        # Step 2: Check prerequisites
+        client = TrainingClient(server.k8s)
+        prereq_passed = True
+
+        # Check cluster connectivity and GPUs
+        try:
+            resources = client.get_cluster_resources()
+            if not resources.has_gpus:
+                issues.append("No GPUs available in cluster")
+                prereq_passed = False
+            elif resources.gpu_info:
+                gpu_available = resources.gpu_info.available
+                required = resource_estimate.get("recommended_gpus", 1)
+                if gpu_available < required:
+                    warnings.append(
+                        f"Only {gpu_available} GPUs available, {required} recommended"
+                    )
+        except Exception as e:
+            issues.append(f"Failed to check cluster resources: {e}")
+            prereq_passed = False
+
+        # Check/select runtime
+        try:
+            runtimes = client.list_cluster_training_runtimes()
+            if not runtimes:
+                issues.append("No training runtimes available")
+                prereq_passed = False
+            elif not runtime_name:
+                # Auto-select first available runtime
+                recommended_runtime = runtimes[0].name
+        except Exception:
+            issues.append("Failed to list training runtimes")
+            prereq_passed = False
+
+        # Validate runtime if specified
+        if runtime_name:
+            try:
+                from rhoai_mcp.domains.training.crds import TrainingCRDs
+
+                server.k8s.get(TrainingCRDs.CLUSTER_TRAINING_RUNTIME, runtime_name)
+            except Exception:
+                issues.append(f"Runtime '{runtime_name}' not found")
+                prereq_passed = False
+
+        # Validate model/dataset ID format
+        if "/" not in model_id:
+            issues.append("Model ID should be in format 'organization/model-name'")
+            prereq_passed = False
+        if "/" not in dataset_id:
+            issues.append("Dataset ID should be in format 'organization/dataset-name'")
+            prereq_passed = False
+
+        # Step 3: Handle storage
+        pvc_name = f"training-checkpoints-{namespace}"
+        storage_exists = False
+
+        try:
+            pvc = server.k8s.get_pvc(pvc_name, namespace)
+            if pvc.status.phase == "Bound":
+                storage_exists = True
+        except Exception:
+            pass
+
+        if not storage_exists and create_storage:
+            # Check if we're allowed to create
+            allowed, reason = server.config.is_operation_allowed("create")
+            if allowed:
+                try:
+                    server.k8s.create_pvc(
+                        name=pvc_name,
+                        namespace=namespace,
+                        size=f"{storage_size_gb}Gi",
+                        access_modes=["ReadWriteMany"],
+                        labels={
+                            "app.kubernetes.io/managed-by": "rhoai-mcp",
+                            "app.kubernetes.io/component": "training-storage",
+                        },
+                    )
+                    storage_created = True
+                    storage_exists = True
+                except Exception as e:
+                    warnings.append(f"Failed to create storage: {e}")
+            else:
+                warnings.append(f"Cannot create storage: {reason}")
+
+        # Build suggested parameters for train() call
+        suggested_params: dict[str, Any] = {
+            "namespace": namespace,
+            "model_id": model_id,
+            "dataset_id": dataset_id,
+            "runtime_name": recommended_runtime,
+            "method": method,
+            "epochs": 3,
+            "batch_size": 32,
+            "learning_rate": 1e-4,
+            "num_nodes": 1,
+            "gpus_per_node": resource_estimate.get("recommended_gpus", 1),
+        }
+
+        if storage_exists:
+            suggested_params["checkpoint_dir"] = f"/mnt/{pvc_name}"
+
+        ready = prereq_passed and len(issues) == 0
+
+        return {
+            "ready": ready,
+            "issues": issues if issues else None,
+            "warnings": warnings if warnings else None,
+            "resource_estimate": resource_estimate,
+            "recommended_runtime": recommended_runtime,
+            "storage_created": storage_created,
+            "storage_pvc": pvc_name if storage_exists else None,
+            "next_action": "train" if ready else "fix_issues",
+            "suggested_train_params": suggested_params,
+        }
+
+
+def _estimate_resources_internal(model_id: str, method: str) -> dict[str, Any]:
+    """Internal helper for resource estimation used by prepare_training."""
+    param_count = _extract_param_count(model_id)
+
+    # Get base memory estimate
+    base_memory = 16
+    for (min_p, max_p), mem in GPU_MEMORY_ESTIMATES.items():
+        if min_p <= param_count < max_p:
+            base_memory = mem
+            break
+
+    try:
+        peft_method = PeftMethod(method.lower())
+    except ValueError:
+        peft_method = PeftMethod.LORA
+
+    multiplier = PEFT_MULTIPLIERS.get(peft_method, 1.8)
+    total_memory = base_memory * multiplier
+
+    recommended_gpus = 1
+    if total_memory > 80:
+        recommended_gpus = int((total_memory / 80) + 0.5)
+
+    return {
+        "model_id": model_id,
+        "estimated_params_billion": param_count,
+        "method": peft_method.value,
+        "total_required_gb": round(total_memory, 1),
+        "recommended_gpus": recommended_gpus,
+        "storage_gb": int(param_count * 4) + 50,
+    }
+
 
 def _extract_param_count(model_id: str) -> float:
     """Extract parameter count from model ID.
