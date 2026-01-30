@@ -157,6 +157,16 @@ class PluginManager:
         self.hook.rhoai_register_resources(mcp=mcp, server=server)
         logger.info(f"Registered resources from {len(self._registered_plugins)} plugins")
 
+    def register_all_prompts(self, mcp: FastMCP, server: RHOAIServer) -> None:
+        """Call prompt registration hooks on all plugins.
+
+        Args:
+            mcp: The FastMCP server instance to register prompts with.
+            server: The RHOAI server instance.
+        """
+        self.hook.rhoai_register_prompts(mcp=mcp, server=server)
+        logger.info(f"Registered prompts from {len(self._registered_plugins)} plugins")
+
     def run_health_checks(self, server: RHOAIServer) -> dict[str, tuple[bool, str]]:
         """Run health checks on all registered plugins.
 

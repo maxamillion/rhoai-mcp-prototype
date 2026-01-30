@@ -71,6 +71,18 @@ class RHOAIMCPHookSpec:
         """
 
     @hookspec
+    def rhoai_register_prompts(self, mcp: FastMCP, server: RHOAIServer) -> None:
+        """Register MCP prompts provided by this plugin.
+
+        This hook is called during server startup to register all
+        prompts (workflow guidance templates) that this plugin provides.
+
+        Args:
+            mcp: The FastMCP server instance to register prompts with.
+            server: The RHOAI server instance for accessing K8s client and config.
+        """
+
+    @hookspec
     def rhoai_get_crd_definitions(self) -> list[CRDDefinition]:
         """Return CRD definitions used by this plugin.
 

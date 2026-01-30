@@ -133,6 +133,28 @@ class TestPluginManager:
 
         assert len(resource_calls) == 1
 
+    def test_register_all_prompts(self) -> None:
+        """Verify prompts are registered from all plugins."""
+        prompt_calls = []
+
+        class TestPlugin:
+            @hookimpl
+            def rhoai_register_prompts(
+                self, mcp: MagicMock, server: MagicMock
+            ) -> None:
+                prompt_calls.append(("register_prompts", mcp, server))
+
+        pm = PluginManager()
+        pm.register_plugin(TestPlugin(), name="test")
+
+        mock_mcp = MagicMock()
+        mock_server = MagicMock()
+        pm.register_all_prompts(mock_mcp, mock_server)
+
+        assert len(prompt_calls) == 1
+        assert prompt_calls[0][1] is mock_mcp
+        assert prompt_calls[0][2] is mock_server
+
     def test_run_health_checks_healthy_plugin(self) -> None:
         """Verify healthy plugins pass health check."""
 
@@ -219,9 +241,9 @@ class TestPluginManager:
         pm = PluginManager()
         count = pm.load_core_plugins()
 
-        # Should load all 9 core domain plugins
-        assert count == 9
-        assert len(pm.registered_plugins) == 9
+        # Should load all 10 core domain plugins
+        assert count == 10
+        assert len(pm.registered_plugins) == 10
 
         # Verify expected plugins are loaded
         expected = {
@@ -234,5 +256,6 @@ class TestPluginManager:
             "training",
             "summary",
             "meta",
+            "prompts",
         }
         assert set(pm.registered_plugins.keys()) == expected

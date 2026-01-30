@@ -83,6 +83,11 @@ class BasePlugin:
         pass
 
     @hookimpl
+    def rhoai_register_prompts(self, mcp: FastMCP, server: RHOAIServer) -> None:
+        """Register MCP prompts. Override in subclass."""
+        pass
+
+    @hookimpl
     def rhoai_get_crd_definitions(self) -> list[CRDDefinition]:
         """Return CRD definitions. Override in subclass."""
         return []

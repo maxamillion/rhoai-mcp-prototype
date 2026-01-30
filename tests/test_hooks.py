@@ -21,6 +21,7 @@ class TestHookSpec:
         assert hasattr(spec, "rhoai_get_plugin_metadata")
         assert hasattr(spec, "rhoai_register_tools")
         assert hasattr(spec, "rhoai_register_resources")
+        assert hasattr(spec, "rhoai_register_prompts")
         assert hasattr(spec, "rhoai_get_crd_definitions")
         assert hasattr(spec, "rhoai_health_check")
 
@@ -33,6 +34,7 @@ class TestHookSpec:
         assert hasattr(pm.hook, "rhoai_get_plugin_metadata")
         assert hasattr(pm.hook, "rhoai_register_tools")
         assert hasattr(pm.hook, "rhoai_register_resources")
+        assert hasattr(pm.hook, "rhoai_register_prompts")
         assert hasattr(pm.hook, "rhoai_get_crd_definitions")
         assert hasattr(pm.hook, "rhoai_health_check")
 

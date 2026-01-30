@@ -149,9 +149,10 @@ class RHOAIServer:
         if self._config.enable_evaluation and self._evaluation_plugin:
             self._instrument_tools_for_evaluation(mcp)
 
-        # Register tools and resources from all plugins
+        # Register tools, resources, and prompts from all plugins
         self._plugin_manager.register_all_tools(mcp, self)
         self._plugin_manager.register_all_resources(mcp, self)
+        self._plugin_manager.register_all_prompts(mcp, self)
 
         # Register core resources (cluster status, etc.)
         self._register_core_resources(mcp)
