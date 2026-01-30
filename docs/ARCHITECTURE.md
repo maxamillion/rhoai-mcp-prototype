@@ -13,13 +13,25 @@ domains/<name>/
 ├── tools.py       # MCP tool implementations
 ├── models.py      # Pydantic models
 ├── crds.py        # CRD definitions (if applicable)
-└── resources.py   # MCP resources (if applicable)
+├── resources.py   # MCP resources (if applicable)
+└── prompts.py     # MCP prompts (if applicable)
 ```
 
 Domains are registered via the plugin system in `domains/registry.py`. Each plugin class:
 1. Inherits from `BasePlugin`
 2. Provides metadata via `PluginMetadata`
 3. Implements `@hookimpl` decorated methods for registration
+
+### Available Hooks
+
+| Hook | Purpose |
+|------|---------|
+| `rhoai_get_plugin_metadata` | Return plugin metadata |
+| `rhoai_register_tools` | Register MCP tools |
+| `rhoai_register_resources` | Register MCP resources |
+| `rhoai_register_prompts` | Register MCP prompts |
+| `rhoai_get_crd_definitions` | Return CRD definitions |
+| `rhoai_health_check` | Check plugin health |
 
 ## Composite Workflow Tools
 
@@ -202,6 +214,92 @@ Mirror the training domain's planning tools pattern.
 - `_estimate_serving_resources()` - Calculates GPU/memory needs
 - `_generate_deployment_name()` - Creates DNS-safe name from model ID
 
+## Prompts Domain
+
+**Location:** `src/rhoai_mcp/domains/prompts/`
+
+MCP Prompts provide workflow guidance templates that help AI agents through multi-step operations.
+
+### Structure
+
+```
+domains/prompts/
+├── __init__.py
+├── prompts.py                  # Main registration coordinator
+├── training_prompts.py         # Training workflow (3 prompts)
+├── exploration_prompts.py      # Cluster exploration (4 prompts)
+├── troubleshooting_prompts.py  # Troubleshooting (4 prompts)
+├── project_prompts.py          # Project setup (3 prompts)
+└── deployment_prompts.py       # Model deployment (4 prompts)
+```
+
+### Prompt Registration Pattern
+
+Prompts are registered using the `@mcp.prompt()` decorator:
+
+```python
+@mcp.prompt(
+    name="train-model",
+    description="Guide through fine-tuning a model with LoRA/QLoRA",
+)
+def train_model(model_id: str, dataset_id: str, namespace: str, method: str = "lora") -> str:
+    return f"""I need to fine-tune a model...
+
+**Training Configuration:**
+- Model: {model_id}
+- Dataset: {dataset_id}
+
+**Please help me complete these steps:**
+
+1. **Check Prerequisites**
+   - Use `check_training_prerequisites` to verify...
+...
+"""
+```
+
+### Adding a New Prompt
+
+1. Choose the appropriate prompt file based on category
+2. Add a new function with the `@mcp.prompt()` decorator:
+   ```python
+   @mcp.prompt(
+       name="my-prompt",
+       description="Short description of what this prompt does",
+   )
+   def my_prompt(param1: str, param2: str = "default") -> str:
+       return f"""Workflow guidance text...
+
+   **Configuration:**
+   - Param1: {param1}
+   - Param2: {param2}
+
+   **Steps:**
+   1. Use `tool_name` to do something
+   2. Use `another_tool` to do something else
+   ...
+   """
+   ```
+3. Add tests in `tests/domains/prompts/test_<category>_prompts.py`
+
+### Adding a New Prompt Category
+
+1. Create a new file `domains/prompts/<category>_prompts.py`
+2. Implement `register_prompts(mcp, server)` function
+3. Import and call it from `prompts.py`:
+   ```python
+   from rhoai_mcp.domains.prompts import new_category_prompts
+   new_category_prompts.register_prompts(mcp, server)
+   ```
+4. Add corresponding test file
+
+### Prompt Best Practices
+
+- **Reference specific tools**: Use backticks around tool names (e.g., `get_training_job`)
+- **Provide clear steps**: Number each step and explain what to do
+- **Include parameters**: Reference the prompt parameters in the output
+- **Handle edge cases**: Mention what to do if something goes wrong
+- **Keep focused**: Each prompt should address one workflow
+
 ## Common Patterns
 
 ### Lazy Imports
@@ -293,6 +391,27 @@ To add a new domain:
        def rhoai_register_tools(self, mcp: FastMCP, server: RHOAIServer) -> None:
            from rhoai_mcp.domains.newdomain.tools import register_tools
            register_tools(mcp, server)
+
+       @hookimpl
+       def rhoai_register_resources(self, mcp: FastMCP, server: RHOAIServer) -> None:
+           from rhoai_mcp.domains.newdomain.resources import register_resources
+           register_resources(mcp, server)
+
+       @hookimpl
+       def rhoai_register_prompts(self, mcp: FastMCP, server: RHOAIServer) -> None:
+           from rhoai_mcp.domains.newdomain.prompts import register_prompts
+           register_prompts(mcp, server)
    ```
 3. Add to `get_core_plugins()` list
-4. Update test assertions for plugin count
+4. Update test assertions for plugin count in:
+   - `tests/test_plugin_manager.py`
+   - `tests/integration/test_plugin_discovery.py`
+
+### Hook Registration Order
+
+During server startup, hooks are called in this order:
+1. `rhoai_get_plugin_metadata` - Collect plugin metadata
+2. `rhoai_register_tools` - Register all MCP tools
+3. `rhoai_register_resources` - Register all MCP resources
+4. `rhoai_register_prompts` - Register all MCP prompts
+5. `rhoai_health_check` - Run health checks (during lifespan)

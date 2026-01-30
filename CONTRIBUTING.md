@@ -13,6 +13,8 @@ rhoai-mcp/
 │       ├── config.py         # Configuration
 │       ├── server.py         # FastMCP server
 │       ├── plugin.py         # Plugin protocol
+│       ├── hooks.py          # Pluggy hook specifications
+│       ├── plugin_manager.py # Plugin lifecycle management
 │       ├── clients/          # K8s client abstractions
 │       ├── models/           # Shared Pydantic models
 │       ├── utils/            # Helper functions
@@ -23,11 +25,19 @@ rhoai-mcp/
 │           ├── pipelines/    # Data Science Pipelines
 │           ├── connections/  # S3 data connections
 │           ├── storage/      # PersistentVolumeClaim
-│           └── training/     # Kubeflow Training Operator
+│           ├── training/     # Kubeflow Training Operator
+│           ├── summary/      # Context-efficient summaries
+│           ├── meta/         # Tool discovery and workflows
+│           └── prompts/      # MCP workflow prompts
 ├── tests/                    # Test suite
 │   ├── conftest.py
+│   ├── domains/              # Domain-specific tests
+│   │   ├── prompts/          # Prompts domain tests
+│   │   └── ...
 │   ├── training/             # Training domain tests
 │   └── integration/          # Cross-component tests
+├── docs/                     # Documentation
+│   └── ARCHITECTURE.md       # Internal architecture guide
 ├── pyproject.toml            # Project configuration
 └── uv.lock                   # Lockfile
 ```
@@ -109,7 +119,21 @@ domains/<name>/
 ├── models.py            # Pydantic models
 ├── tools.py             # MCP tool implementations
 ├── crds.py              # CRD definitions (if applicable)
-└── resources.py         # MCP resources (optional)
+├── resources.py         # MCP resources (optional)
+└── prompts.py           # MCP prompts (optional)
+```
+
+The `prompts` domain is special - it only contains prompts (no client or models):
+
+```
+domains/prompts/
+├── __init__.py
+├── prompts.py                  # Main registration
+├── training_prompts.py         # Training workflow prompts
+├── exploration_prompts.py      # Cluster exploration prompts
+├── troubleshooting_prompts.py  # Troubleshooting prompts
+├── project_prompts.py          # Project setup prompts
+└── deployment_prompts.py       # Model deployment prompts
 ```
 
 ### Adding a New Domain
@@ -120,7 +144,8 @@ domains/<name>/
    ├── __init__.py
    ├── client.py
    ├── models.py
-   └── tools.py
+   ├── tools.py
+   └── prompts.py  # Optional: if domain has workflow prompts
    ```
 
 2. Implement the domain client:
@@ -135,19 +160,40 @@ domains/<name>/
 
 3. Register the domain in `domains/registry.py`:
    ```python
-   from rhoai_mcp.domains.my_domain import register_tools
+   from rhoai_mcp.hooks import hookimpl
+   from rhoai_mcp.plugin import BasePlugin, PluginMetadata
 
-   DOMAIN_REGISTRY = [
-       # ... existing domains
-       DomainInfo(
-           name="my-domain",
-           description="My domain description",
-           register_tools=register_tools,
-       ),
-   ]
+   class MyDomainPlugin(BasePlugin):
+       def __init__(self) -> None:
+           super().__init__(
+               PluginMetadata(
+                   name="my-domain",
+                   version="1.0.0",
+                   description="My domain description",
+                   maintainer="team@example.com",
+                   requires_crds=[],
+               )
+           )
+
+       @hookimpl
+       def rhoai_register_tools(self, mcp, server) -> None:
+           from rhoai_mcp.domains.my_domain.tools import register_tools
+           register_tools(mcp, server)
+
+       # Optional: add prompts
+       @hookimpl
+       def rhoai_register_prompts(self, mcp, server) -> None:
+           from rhoai_mcp.domains.my_domain.prompts import register_prompts
+           register_prompts(mcp, server)
    ```
 
-4. Add tests in `tests/my_domain/`
+4. Add to `get_core_plugins()` list in `registry.py`
+
+5. Add tests in `tests/domains/my_domain/`
+
+6. Update plugin count in test files:
+   - `tests/test_plugin_manager.py`
+   - `tests/integration/test_plugin_discovery.py`
 
 ## Container Build
 
