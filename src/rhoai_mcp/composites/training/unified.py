@@ -263,9 +263,7 @@ def _action_get(server: RHOAIServer, namespace: str | None, name: str | None) ->
     return result
 
 
-def _action_status(
-    server: RHOAIServer, namespace: str | None, name: str | None
-) -> dict[str, Any]:
+def _action_status(server: RHOAIServer, namespace: str | None, name: str | None) -> dict[str, Any]:
     """Quick status check."""
     if namespace is None or name is None:
         return {"error": "namespace and name are required for status action"}
@@ -415,9 +413,7 @@ def _action_create(
     }
 
 
-def _action_suspend(
-    server: RHOAIServer, namespace: str | None, name: str | None
-) -> dict[str, Any]:
+def _action_suspend(server: RHOAIServer, namespace: str | None, name: str | None) -> dict[str, Any]:
     """Suspend a training job."""
     if namespace is None or name is None:
         return {"error": "namespace and name are required for suspend action"}
@@ -434,9 +430,7 @@ def _action_suspend(
     }
 
 
-def _action_resume(
-    server: RHOAIServer, namespace: str | None, name: str | None
-) -> dict[str, Any]:
+def _action_resume(server: RHOAIServer, namespace: str | None, name: str | None) -> dict[str, Any]:
     """Resume a training job."""
     if namespace is None or name is None:
         return {"error": "namespace and name are required for resume action"}
@@ -509,9 +503,7 @@ def _action_logs(
     }
 
 
-def _action_events(
-    server: RHOAIServer, namespace: str | None, name: str | None
-) -> dict[str, Any]:
+def _action_events(server: RHOAIServer, namespace: str | None, name: str | None) -> dict[str, Any]:
     """Get job events."""
     if namespace is None or name is None:
         return {"error": "namespace and name are required for events action"}
