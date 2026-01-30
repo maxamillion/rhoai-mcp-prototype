@@ -53,22 +53,29 @@ rhoai-mcp/
 │       ├── clients/             # K8s client abstractions
 │       ├── models/              # Shared Pydantic models
 │       ├── utils/               # Helper functions
-│       └── domains/             # Domain modules
-│           ├── projects/        # Data Science Project management
-│           ├── notebooks/       # Kubeflow Notebook/Workbench
-│           ├── inference/       # KServe InferenceService
-│           ├── pipelines/       # Data Science Pipelines (DSPA)
-│           ├── connections/     # S3 data connections
-│           ├── storage/         # PersistentVolumeClaim
-│           ├── training/        # Kubeflow Training Operator
-│           ├── summary/         # Context-efficient summaries
-│           ├── meta/            # Tool discovery and workflows
-│           └── prompts/         # MCP workflow prompts (18 prompts)
+│       ├── domains/             # Domain modules (pure CRUD operations)
+│       │   ├── projects/        # Data Science Project management
+│       │   ├── notebooks/       # Kubeflow Notebook/Workbench
+│       │   ├── inference/       # KServe InferenceService
+│       │   ├── pipelines/       # Data Science Pipelines (DSPA)
+│       │   ├── connections/     # S3 data connections
+│       │   ├── storage/         # PersistentVolumeClaim
+│       │   ├── training/        # Kubeflow Training Operator
+│       │   ├── evaluation/      # Model evaluation jobs
+│       │   ├── prompts/         # MCP workflow prompts (18 prompts)
+│       │   └── registry.py      # Domain plugin registry (9 plugins)
+│       └── composites/          # Cross-cutting composite tools
+│           ├── cluster/         # Cluster summaries and exploration
+│           ├── training/        # Training workflow orchestration
+│           ├── meta/            # Tool discovery and guidance
+│           └── registry.py      # Composite plugin registry (3 plugins)
 ├── tests/                       # Test suite
 ├── docs/                        # Documentation
 ├── pyproject.toml               # Project configuration
 └── Containerfile                # Container build
 ```
+
+**Domains vs Composites**: Domain modules provide CRUD operations for specific Kubernetes resource types. Composite modules provide cross-cutting tools that orchestrate multiple domains (e.g., `prepare_training` validates storage, credentials, and runtime before creating a training job).
 
 ### Domain Module Structure
 
