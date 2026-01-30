@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from mcp.server.fastmcp import FastMCP
 
-from rhoai_mcp.domains.meta.tools import TOOL_CATEGORIES
+from rhoai_mcp.composites.meta.tools import TOOL_CATEGORIES
 
 if TYPE_CHECKING:
     from rhoai_mcp.server import RHOAIServer

@@ -20,13 +20,13 @@ if TYPE_CHECKING:
 
 # Model size estimates by parameter count (in billions)
 MODEL_SIZE_ESTIMATES = {
-    (0, 1): 2,      # < 1B params -> ~2GB
-    (1, 3): 6,      # 1-3B params -> ~6GB
-    (3, 7): 14,     # 3-7B params -> ~14GB
-    (7, 13): 26,    # 7-13B params -> ~26GB
-    (13, 30): 60,   # 13-30B params -> ~60GB
+    (0, 1): 2,  # < 1B params -> ~2GB
+    (1, 3): 6,  # 1-3B params -> ~6GB
+    (3, 7): 14,  # 3-7B params -> ~14GB
+    (7, 13): 26,  # 7-13B params -> ~26GB
+    (13, 30): 60,  # 13-30B params -> ~60GB
     (30, 70): 140,  # 30-70B params -> ~140GB
-    (70, 200): 400, # 70-200B params -> ~400GB
+    (70, 200): 400,  # 70-200B params -> ~400GB
 }
 
 
@@ -406,17 +406,21 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
         # Check 1: Namespace exists
         try:
             server.k8s.core_v1.read_namespace(namespace)
-            checks.append({
-                "name": "Namespace",
-                "passed": True,
-                "message": f"Namespace '{namespace}' exists",
-            })
+            checks.append(
+                {
+                    "name": "Namespace",
+                    "passed": True,
+                    "message": f"Namespace '{namespace}' exists",
+                }
+            )
         except Exception:
-            checks.append({
-                "name": "Namespace",
-                "passed": False,
-                "message": f"Namespace '{namespace}' not found",
-            })
+            checks.append(
+                {
+                    "name": "Namespace",
+                    "passed": False,
+                    "message": f"Namespace '{namespace}' not found",
+                }
+            )
             all_passed = False
             actions_needed.append(f"Create namespace '{namespace}'")
 
@@ -424,21 +428,28 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
         client = InferenceClient(server.k8s)
         runtimes = client.list_serving_runtimes(namespace)
 
-        compatible = [r for r in runtimes if model_format.lower() in
-                      [f.lower() for f in r.get("supported_formats", [])]]
+        compatible = [
+            r
+            for r in runtimes
+            if model_format.lower() in [f.lower() for f in r.get("supported_formats", [])]
+        ]
 
         if compatible:
-            checks.append({
-                "name": "Serving runtime",
-                "passed": True,
-                "message": f"{len(compatible)} runtime(s) support {model_format}",
-            })
+            checks.append(
+                {
+                    "name": "Serving runtime",
+                    "passed": True,
+                    "message": f"{len(compatible)} runtime(s) support {model_format}",
+                }
+            )
         else:
-            checks.append({
-                "name": "Serving runtime",
-                "passed": False,
-                "message": f"No runtime supports format '{model_format}'",
-            })
+            checks.append(
+                {
+                    "name": "Serving runtime",
+                    "passed": False,
+                    "message": f"No runtime supports format '{model_format}'",
+                }
+            )
             all_passed = False
             actions_needed.append("Verify model format or check available runtimes")
 
@@ -448,38 +459,48 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             try:
                 pvc = server.k8s.get_pvc(pvc_name, namespace)
                 if pvc.status.phase == "Bound":
-                    checks.append({
-                        "name": "Storage",
-                        "passed": True,
-                        "message": f"PVC '{pvc_name}' is bound",
-                    })
+                    checks.append(
+                        {
+                            "name": "Storage",
+                            "passed": True,
+                            "message": f"PVC '{pvc_name}' is bound",
+                        }
+                    )
                 else:
-                    checks.append({
-                        "name": "Storage",
-                        "passed": False,
-                        "message": f"PVC '{pvc_name}' is {pvc.status.phase}",
-                    })
+                    checks.append(
+                        {
+                            "name": "Storage",
+                            "passed": False,
+                            "message": f"PVC '{pvc_name}' is {pvc.status.phase}",
+                        }
+                    )
                     all_passed = False
             except Exception:
-                checks.append({
-                    "name": "Storage",
-                    "passed": False,
-                    "message": f"PVC '{pvc_name}' not found",
-                })
+                checks.append(
+                    {
+                        "name": "Storage",
+                        "passed": False,
+                        "message": f"PVC '{pvc_name}' not found",
+                    }
+                )
                 all_passed = False
                 actions_needed.append(f"Create PVC '{pvc_name}' with model files")
         elif storage_uri.startswith("s3://"):
-            checks.append({
-                "name": "Storage",
-                "passed": True,
-                "message": "S3 storage configured (ensure data connection exists)",
-            })
+            checks.append(
+                {
+                    "name": "Storage",
+                    "passed": True,
+                    "message": "S3 storage configured (ensure data connection exists)",
+                }
+            )
         else:
-            checks.append({
-                "name": "Storage",
-                "passed": False,
-                "message": f"Unknown storage scheme: {storage_uri}",
-            })
+            checks.append(
+                {
+                    "name": "Storage",
+                    "passed": False,
+                    "message": f"Unknown storage scheme: {storage_uri}",
+                }
+            )
             all_passed = False
 
         return {
@@ -580,9 +601,9 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
                 "recommended": None,
                 "alternatives": [],
                 "error": f"No runtime supports format '{model_format}'",
-                "available_formats": list({
-                    f for rt in runtimes for f in rt.get("supported_formats", [])
-                }),
+                "available_formats": list(
+                    {f for rt in runtimes for f in rt.get("supported_formats", [])}
+                ),
             }
 
         # Score runtimes
@@ -701,10 +722,22 @@ def _estimate_model_info(model_id: str) -> dict[str, Any]:
         model_format = "gguf"
 
     # Detect if LLM
-    is_llm = any(name in model_lower for name in [
-        "llama", "mistral", "qwen", "falcon", "gpt", "bloom", "opt",
-        "phi", "gemma", "instruct", "chat"
-    ])
+    is_llm = any(
+        name in model_lower
+        for name in [
+            "llama",
+            "mistral",
+            "qwen",
+            "falcon",
+            "gpt",
+            "bloom",
+            "opt",
+            "phi",
+            "gemma",
+            "instruct",
+            "chat",
+        ]
+    )
 
     return {
         "model_id": model_id,

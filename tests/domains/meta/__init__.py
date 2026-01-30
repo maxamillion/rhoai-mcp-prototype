@@ -1,1 +1,0 @@
-"""Meta domain tests."""

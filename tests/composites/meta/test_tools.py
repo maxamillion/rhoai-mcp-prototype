@@ -1,10 +1,10 @@
-"""Tests for meta domain tools."""
+"""Tests for meta composite tools."""
 
 from unittest.mock import MagicMock
 
 import pytest
 
-from rhoai_mcp.domains.meta.tools import (
+from rhoai_mcp.composites.meta.tools import (
     INTENT_PATTERNS,
     TOOL_CATEGORIES,
     register_tools,

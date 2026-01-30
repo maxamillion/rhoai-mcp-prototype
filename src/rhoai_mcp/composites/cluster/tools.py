@@ -1,6 +1,6 @@
 """MCP Tools for context-efficient cluster and project summaries.
 
-These tools are optimized for AI agent context windows, providing compact
+These composite tools are optimized for AI agent context windows, providing compact
 overviews that reduce token usage significantly compared to full resource listings.
 """
 
@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from mcp.server.fastmcp import FastMCP
 
-from rhoai_mcp.domains.summary.models import (
+from rhoai_mcp.composites.cluster.models import (
     ClusterSummary,
     MultiResourceStatusResult,
     ProjectSummary,
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 
 def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
-    """Register summary tools with the MCP server."""
+    """Register cluster composite tools with the MCP server."""
 
     @mcp.tool()
     def cluster_summary() -> ClusterSummary:
@@ -291,9 +291,7 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
                         proj_issues.append("No models ready")
                 if proj_issues:
                     proj_info["issues"] = proj_issues
-                    all_issues.extend(
-                        [f"{project.metadata.name}: {i}" for i in proj_issues]
-                    )
+                    all_issues.extend([f"{project.metadata.name}: {i}" for i in proj_issues])
 
             project_summaries.append(proj_info)
 
@@ -366,9 +364,7 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             result.update(_diagnose_pipeline(server, name, namespace))
         else:
             result["issues_detected"].append(f"Unknown resource type: {resource_type}")
-            result["suggested_fixes"].append(
-                "Use one of: workbench, model, training_job, pipeline"
-            )
+            result["suggested_fixes"].append("Use one of: workbench, model, training_job, pipeline")
 
         return result
 
@@ -546,9 +542,7 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
         }
 
 
-def _diagnose_workbench(
-    server: "RHOAIServer", name: str, namespace: str
-) -> dict:
+def _diagnose_workbench(server: "RHOAIServer", name: str, namespace: str) -> dict:
     """Diagnose a workbench."""
     from rhoai_mcp.domains.notebooks.client import NotebookClient
 
@@ -590,9 +584,7 @@ def _diagnose_workbench(
     return result
 
 
-def _diagnose_model(
-    server: "RHOAIServer", name: str, namespace: str
-) -> dict:
+def _diagnose_model(server: "RHOAIServer", name: str, namespace: str) -> dict:
     """Diagnose a model deployment."""
     from rhoai_mcp.domains.inference.client import InferenceClient
 
@@ -628,9 +620,7 @@ def _diagnose_model(
     return result
 
 
-def _diagnose_training_job(
-    server: "RHOAIServer", name: str, namespace: str
-) -> dict:
+def _diagnose_training_job(server: "RHOAIServer", name: str, namespace: str) -> dict:
     """Diagnose a training job."""
     from rhoai_mcp.domains.training.client import TrainingClient
 
@@ -690,7 +680,9 @@ def _diagnose_training_job(
 
 
 def _diagnose_pipeline(
-    server: "RHOAIServer", name: str, namespace: str  # noqa: ARG001
+    server: "RHOAIServer",
+    name: str,  # noqa: ARG001
+    namespace: str,
 ) -> dict:
     """Diagnose a pipeline server."""
     from rhoai_mcp.domains.pipelines.client import PipelineClient
@@ -722,9 +714,7 @@ def _diagnose_pipeline(
     return result
 
 
-def _manage_workbench(
-    server: "RHOAIServer", action: str, name: str, namespace: str
-) -> dict:
+def _manage_workbench(server: "RHOAIServer", action: str, name: str, namespace: str) -> dict:
     """Manage workbench lifecycle."""
     from rhoai_mcp.domains.notebooks.client import NotebookClient
 
@@ -743,9 +733,7 @@ def _manage_workbench(
         return {"error": f"Action '{action}' not supported for workbenches"}
 
 
-def _manage_model(
-    server: "RHOAIServer", action: str, name: str, namespace: str
-) -> dict:
+def _manage_model(server: "RHOAIServer", action: str, name: str, namespace: str) -> dict:
     """Manage model lifecycle."""
     from rhoai_mcp.domains.inference.client import InferenceClient
 
@@ -758,9 +746,7 @@ def _manage_model(
         return {"error": f"Action '{action}' not supported for models (only delete)"}
 
 
-def _manage_training_job(
-    server: "RHOAIServer", action: str, name: str, namespace: str
-) -> dict:
+def _manage_training_job(server: "RHOAIServer", action: str, name: str, namespace: str) -> dict:
     """Manage training job lifecycle."""
     from rhoai_mcp.domains.training.client import TrainingClient
 

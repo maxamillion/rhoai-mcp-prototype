@@ -273,3 +273,25 @@ class ResourceEstimate(BaseModel):
     recommended_gpus: int = Field(..., description="Recommended number of GPUs")
     recommended_gpu_type: str = Field(..., description="Recommended GPU type")
     storage_gb: int = Field(..., description="Recommended storage in GB")
+
+
+# GPU memory estimates by model size (in billions of parameters)
+# Values are approximate based on typical requirements
+# Key: (min_params, max_params) -> base_memory_gb
+GPU_MEMORY_ESTIMATES: dict[tuple[int, int], int] = {
+    (0, 1): 2,
+    (1, 3): 6,
+    (3, 7): 14,
+    (7, 13): 26,
+    (13, 30): 48,
+    (30, 70): 80,
+    (70, 200): 160,
+}
+
+# PEFT method memory multipliers
+PEFT_MULTIPLIERS: dict[PeftMethod, float] = {
+    PeftMethod.FULL: 4.0,  # Full fine-tuning needs optimizer states
+    PeftMethod.LORA: 1.8,  # LoRA adds adapter weights
+    PeftMethod.QLORA: 1.2,  # QLoRA uses quantization
+    PeftMethod.DORA: 1.8,  # DoRA similar to LoRA
+}

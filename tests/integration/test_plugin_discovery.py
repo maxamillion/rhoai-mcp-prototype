@@ -4,17 +4,18 @@ from unittest.mock import MagicMock
 
 
 def test_plugin_manager_loads_core_plugins():
-    """Verify PluginManager loads all core domain plugins."""
+    """Verify PluginManager loads all core domain and composite plugins."""
     from rhoai_mcp.plugin_manager import PluginManager
 
     pm = PluginManager()
     count = pm.load_core_plugins()
 
-    # Should load all 10 core domain plugins
-    assert count == 10
-    assert len(pm.registered_plugins) == 10
+    # Should load 8 core domain plugins + 3 composite plugins = 11 total
+    assert count == 11
+    assert len(pm.registered_plugins) == 11
 
-    expected_plugins = {
+    # Core domain plugins (8)
+    expected_domains = {
         "projects",
         "notebooks",
         "inference",
@@ -22,22 +23,27 @@ def test_plugin_manager_loads_core_plugins():
         "connections",
         "storage",
         "training",
-        "summary",
-        "meta",
         "prompts",
     }
+    # Composite plugins (3)
+    expected_composites = {
+        "cluster-composites",
+        "training-composites",
+        "meta-composites",
+    }
+    expected_plugins = expected_domains | expected_composites
     assert set(pm.registered_plugins.keys()) == expected_plugins
 
 
 def test_core_plugins_have_valid_metadata():
-    """Verify all core plugins provide valid metadata."""
+    """Verify all core and composite plugins provide valid metadata."""
     from rhoai_mcp.plugin_manager import PluginManager
 
     pm = PluginManager()
     pm.load_core_plugins()
 
     metadata_list = pm.get_all_metadata()
-    assert len(metadata_list) == 10
+    assert len(metadata_list) == 11  # 8 domain + 3 composite
 
     for meta in metadata_list:
         assert meta.name
@@ -81,10 +87,10 @@ def test_server_creates_plugin_manager():
     from rhoai_mcp.server import RHOAIServer
 
     server = RHOAIServer()
-    mcp = server.create_mcp()
+    mcp = server.create_mcp()  # noqa: F841
 
     assert server._plugin_manager is not None
-    assert len(server.plugins) == 10
+    assert len(server.plugins) == 11  # 8 domain + 3 composite
 
 
 def test_external_plugins_discovered():
@@ -111,7 +117,21 @@ def test_get_core_plugins_returns_plugin_instances():
     from rhoai_mcp.plugin import BasePlugin
 
     plugins = get_core_plugins()
-    assert len(plugins) == 10
+    assert len(plugins) == 8  # Domain plugins only, composites are separate
+
+    for plugin in plugins:
+        assert isinstance(plugin, BasePlugin)
+        # All should have hookimpl-decorated methods
+        assert hasattr(plugin.rhoai_get_plugin_metadata, "rhoai_mcp_impl")
+
+
+def test_get_composite_plugins_returns_plugin_instances():
+    """Verify get_composite_plugins returns proper plugin instances."""
+    from rhoai_mcp.composites.registry import get_composite_plugins
+    from rhoai_mcp.plugin import BasePlugin
+
+    plugins = get_composite_plugins()
+    assert len(plugins) == 3  # cluster, training, meta composites
 
     for plugin in plugins:
         assert isinstance(plugin, BasePlugin)

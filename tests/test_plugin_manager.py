@@ -237,16 +237,17 @@ class TestPluginManager:
         assert crds[0]["kind"] == "TestCRD"
 
     def test_load_core_plugins(self) -> None:
-        """Verify core plugins are loaded from registry."""
+        """Verify core plugins and composite plugins are loaded from registries."""
         pm = PluginManager()
         count = pm.load_core_plugins()
 
-        # Should load all 10 core domain plugins
-        assert count == 10
-        assert len(pm.registered_plugins) == 10
+        # Should load 8 core domain plugins + 3 composite plugins = 11 total
+        assert count == 11
+        assert len(pm.registered_plugins) == 11
 
         # Verify expected plugins are loaded
-        expected = {
+        # Core domain plugins (8)
+        expected_domains = {
             "projects",
             "notebooks",
             "inference",
@@ -254,8 +255,13 @@ class TestPluginManager:
             "connections",
             "storage",
             "training",
-            "summary",
-            "meta",
             "prompts",
         }
+        # Composite plugins (3)
+        expected_composites = {
+            "cluster-composites",
+            "training-composites",
+            "meta-composites",
+        }
+        expected = expected_domains | expected_composites
         assert set(pm.registered_plugins.keys()) == expected

@@ -186,63 +186,77 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:  # noqa: ARG001
 
         for tool in best_match["workflow"]:
             if tool == "prepare_training":
-                example_calls.append({
-                    "tool": tool,
-                    "args": {
-                        "namespace": namespace,
-                        "model_id": "meta-llama/Llama-2-7b-hf",
-                        "dataset_id": "tatsu-lab/alpaca",
-                    },
-                })
+                example_calls.append(
+                    {
+                        "tool": tool,
+                        "args": {
+                            "namespace": namespace,
+                            "model_id": "meta-llama/Llama-2-7b-hf",
+                            "dataset_id": "tatsu-lab/alpaca",
+                        },
+                    }
+                )
             elif tool == "train":
-                example_calls.append({
-                    "tool": tool,
-                    "args": {
-                        "namespace": namespace,
-                        "model_id": "meta-llama/Llama-2-7b-hf",
-                        "dataset_id": "tatsu-lab/alpaca",
-                        "runtime_name": "mcp-transformers-runtime",
-                        "confirmed": True,
-                    },
-                })
+                example_calls.append(
+                    {
+                        "tool": tool,
+                        "args": {
+                            "namespace": namespace,
+                            "model_id": "meta-llama/Llama-2-7b-hf",
+                            "dataset_id": "tatsu-lab/alpaca",
+                            "runtime_name": "mcp-transformers-runtime",
+                            "confirmed": True,
+                        },
+                    }
+                )
             elif tool == "prepare_model_deployment":
-                example_calls.append({
-                    "tool": tool,
-                    "args": {
-                        "namespace": namespace,
-                        "model_id": "meta-llama/Llama-2-7b-hf",
-                    },
-                })
+                example_calls.append(
+                    {
+                        "tool": tool,
+                        "args": {
+                            "namespace": namespace,
+                            "model_id": "meta-llama/Llama-2-7b-hf",
+                        },
+                    }
+                )
             elif tool == "deploy_model":
-                example_calls.append({
-                    "tool": tool,
-                    "args": {
-                        "namespace": namespace,
-                        "name": "my-model",
-                        "runtime": "vllm-runtime",
-                        "model_format": "pytorch",
-                        "storage_uri": "pvc://model-storage/model",
-                    },
-                })
+                example_calls.append(
+                    {
+                        "tool": tool,
+                        "args": {
+                            "namespace": namespace,
+                            "name": "my-model",
+                            "runtime": "vllm-runtime",
+                            "model_format": "pytorch",
+                            "storage_uri": "pvc://model-storage/model",
+                        },
+                    }
+                )
             elif tool == "diagnose_resource":
-                example_calls.append({
-                    "tool": tool,
-                    "args": {
-                        "resource_type": "training_job",
-                        "name": resource_name,
-                        "namespace": namespace,
-                    },
-                })
+                example_calls.append(
+                    {
+                        "tool": tool,
+                        "args": {
+                            "resource_type": "training_job",
+                            "name": resource_name,
+                            "namespace": namespace,
+                        },
+                    }
+                )
             elif tool == "explore_cluster":
-                example_calls.append({
-                    "tool": tool,
-                    "args": {},
-                })
+                example_calls.append(
+                    {
+                        "tool": tool,
+                        "args": {},
+                    }
+                )
             else:
-                example_calls.append({
-                    "tool": tool,
-                    "args": {"namespace": namespace},
-                })
+                example_calls.append(
+                    {
+                        "tool": tool,
+                        "args": {"namespace": namespace},
+                    }
+                )
 
         return {
             "intent": intent,
@@ -265,12 +279,14 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:  # noqa: ARG001
         """
         categories = []
         for name, info in TOOL_CATEGORIES.items():
-            categories.append({
-                "category": name,
-                "description": info["description"],
-                "key_tools": info["tools"][:3],
-                "use_first": info.get("use_first", False),
-            })
+            categories.append(
+                {
+                    "category": name,
+                    "description": info["description"],
+                    "key_tools": info["tools"][:3],
+                    "use_first": info.get("use_first", False),
+                }
+            )
 
         return {
             "categories": categories,

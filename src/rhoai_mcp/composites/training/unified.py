@@ -12,7 +12,12 @@ from typing import TYPE_CHECKING, Any, Literal
 from mcp.server.fastmcp import FastMCP
 
 from rhoai_mcp.domains.training.client import TrainingClient
-from rhoai_mcp.domains.training.models import PeftMethod, TrainJobStatus
+from rhoai_mcp.domains.training.models import (
+    GPU_MEMORY_ESTIMATES,
+    PEFT_MULTIPLIERS,
+    PeftMethod,
+    TrainJobStatus,
+)
 
 if TYPE_CHECKING:
     from rhoai_mcp.server import RHOAIServer
@@ -215,18 +220,14 @@ def _action_list(server: RHOAIServer, namespace: str | None) -> dict[str, Any]:
                 "name": job.name,
                 "status": job.status.value,
                 "model_id": job.model_id,
-                "progress": f"{round(job.progress.progress_percent, 1)}%"
-                if job.progress
-                else None,
+                "progress": f"{round(job.progress.progress_percent, 1)}%" if job.progress else None,
             }
             for job in jobs
         ],
     }
 
 
-def _action_get(
-    server: RHOAIServer, namespace: str | None, name: str | None
-) -> dict[str, Any]:
+def _action_get(server: RHOAIServer, namespace: str | None, name: str | None) -> dict[str, Any]:
     """Get training job details."""
     if namespace is None or name is None:
         return {"error": "namespace and name are required for get action"}
@@ -495,7 +496,9 @@ def _action_logs(
         return {"error": "namespace and name are required for logs action"}
 
     client = TrainingClient(server.k8s)
-    logs = client.get_training_logs(namespace, name, container=container, tail_lines=tail_lines, previous=previous)
+    logs = client.get_training_logs(
+        namespace, name, container=container, tail_lines=tail_lines, previous=previous
+    )
 
     return {
         "action": "logs",
@@ -578,11 +581,7 @@ def _action_estimate(
     if model_id is None:
         return {"error": "model_id is required for estimate action"}
 
-    from rhoai_mcp.domains.training.tools.planning import (
-        GPU_MEMORY_ESTIMATES,
-        PEFT_MULTIPLIERS,
-        _extract_param_count,
-    )
+    from rhoai_mcp.composites.training.planning import _extract_param_count
 
     param_count = _extract_param_count(model_id)
 
@@ -689,70 +688,88 @@ def _action_prerequisites(
     # Check cluster connectivity and GPUs
     try:
         resources = client.get_cluster_resources()
-        checks.append({
-            "name": "Cluster connectivity",
-            "passed": True,
-            "message": f"Connected to cluster with {resources.node_count} nodes",
-        })
+        checks.append(
+            {
+                "name": "Cluster connectivity",
+                "passed": True,
+                "message": f"Connected to cluster with {resources.node_count} nodes",
+            }
+        )
 
         if resources.has_gpus and resources.gpu_info:
-            checks.append({
-                "name": "GPU availability",
-                "passed": True,
-                "message": f"{resources.gpu_info.total} GPUs available",
-            })
+            checks.append(
+                {
+                    "name": "GPU availability",
+                    "passed": True,
+                    "message": f"{resources.gpu_info.total} GPUs available",
+                }
+            )
         else:
-            checks.append({
-                "name": "GPU availability",
-                "passed": False,
-                "message": "No GPUs detected",
-            })
+            checks.append(
+                {
+                    "name": "GPU availability",
+                    "passed": False,
+                    "message": "No GPUs detected",
+                }
+            )
             all_passed = False
             actions_needed.append("Ensure GPU nodes are available")
     except Exception as e:
-        checks.append({
-            "name": "Cluster connectivity",
-            "passed": False,
-            "message": str(e),
-        })
+        checks.append(
+            {
+                "name": "Cluster connectivity",
+                "passed": False,
+                "message": str(e),
+            }
+        )
         all_passed = False
 
     # Check runtime availability
     try:
         runtimes = client.list_cluster_training_runtimes()
         if runtimes:
-            checks.append({
-                "name": "Training runtimes",
-                "passed": True,
-                "message": f"{len(runtimes)} runtimes available",
-            })
+            checks.append(
+                {
+                    "name": "Training runtimes",
+                    "passed": True,
+                    "message": f"{len(runtimes)} runtimes available",
+                }
+            )
         else:
-            checks.append({
-                "name": "Training runtimes",
-                "passed": False,
-                "message": "No runtimes configured",
-            })
+            checks.append(
+                {
+                    "name": "Training runtimes",
+                    "passed": False,
+                    "message": "No runtimes configured",
+                }
+            )
             all_passed = False
             actions_needed.append("Create a training runtime")
     except Exception:
-        checks.append({
-            "name": "Training runtimes",
-            "passed": False,
-            "message": "Failed to list runtimes",
-        })
+        checks.append(
+            {
+                "name": "Training runtimes",
+                "passed": False,
+                "message": "Failed to list runtimes",
+            }
+        )
         all_passed = False
 
     # Check model/dataset format
     if "/" in model_id:
         checks.append({"name": "Model ID format", "passed": True, "message": "Valid format"})
     else:
-        checks.append({"name": "Model ID format", "passed": False, "message": "Should be org/model"})
+        checks.append(
+            {"name": "Model ID format", "passed": False, "message": "Should be org/model"}
+        )
         all_passed = False
 
     if "/" in dataset_id:
         checks.append({"name": "Dataset ID format", "passed": True, "message": "Valid format"})
     else:
-        checks.append({"name": "Dataset ID format", "passed": False, "message": "Should be org/dataset"})
+        checks.append(
+            {"name": "Dataset ID format", "passed": False, "message": "Should be org/dataset"}
+        )
         all_passed = False
 
     # Check storage if specified
@@ -760,24 +777,30 @@ def _action_prerequisites(
         try:
             pvc = server.k8s.get_pvc(checkpoint_storage, namespace)
             if pvc.status.phase == "Bound":
-                checks.append({
-                    "name": "Checkpoint storage",
-                    "passed": True,
-                    "message": f"PVC '{checkpoint_storage}' is bound",
-                })
+                checks.append(
+                    {
+                        "name": "Checkpoint storage",
+                        "passed": True,
+                        "message": f"PVC '{checkpoint_storage}' is bound",
+                    }
+                )
             else:
-                checks.append({
-                    "name": "Checkpoint storage",
-                    "passed": False,
-                    "message": f"PVC state: {pvc.status.phase}",
-                })
+                checks.append(
+                    {
+                        "name": "Checkpoint storage",
+                        "passed": False,
+                        "message": f"PVC state: {pvc.status.phase}",
+                    }
+                )
                 all_passed = False
         except Exception:
-            checks.append({
-                "name": "Checkpoint storage",
-                "passed": False,
-                "message": f"PVC '{checkpoint_storage}' not found",
-            })
+            checks.append(
+                {
+                    "name": "Checkpoint storage",
+                    "passed": False,
+                    "message": f"PVC '{checkpoint_storage}' not found",
+                }
+            )
             all_passed = False
             actions_needed.append(f"Create PVC '{checkpoint_storage}'")
 

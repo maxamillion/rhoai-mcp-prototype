@@ -207,70 +207,6 @@ class TrainingPlugin(BasePlugin):
         return TrainingCRDs.all_crds()
 
 
-class SummaryPlugin(BasePlugin):
-    """Plugin for context-efficient cluster and project summaries.
-
-    Provides lightweight tools optimized for AI agent context windows,
-    offering compact overviews that reduce token usage significantly.
-    """
-
-    def __init__(self) -> None:
-        super().__init__(
-            PluginMetadata(
-                name="summary",
-                version="1.0.0",
-                description="Context-efficient summary tools for AI agents",
-                maintainer="rhoai-mcp@redhat.com",
-                requires_crds=[],
-            )
-        )
-
-    @hookimpl
-    def rhoai_register_tools(self, mcp: FastMCP, server: RHOAIServer) -> None:
-        from rhoai_mcp.domains.summary.tools import register_tools
-
-        register_tools(mcp, server)
-
-    @hookimpl
-    def rhoai_health_check(self, server: RHOAIServer) -> tuple[bool, str]:  # noqa: ARG002
-        return True, "Summary tools use core domain clients"
-
-
-class MetaPlugin(BasePlugin):
-    """Plugin for tool discovery and workflow guidance.
-
-    Provides meta-tools that help AI agents discover the right tools
-    for their tasks and understand typical workflows.
-    """
-
-    def __init__(self) -> None:
-        super().__init__(
-            PluginMetadata(
-                name="meta",
-                version="1.0.0",
-                description="Tool discovery and workflow guidance",
-                maintainer="rhoai-mcp@redhat.com",
-                requires_crds=[],
-            )
-        )
-
-    @hookimpl
-    def rhoai_register_tools(self, mcp: FastMCP, server: RHOAIServer) -> None:
-        from rhoai_mcp.domains.meta.tools import register_tools
-
-        register_tools(mcp, server)
-
-    @hookimpl
-    def rhoai_register_resources(self, mcp: FastMCP, server: RHOAIServer) -> None:
-        from rhoai_mcp.domains.meta.resources import register_resources
-
-        register_resources(mcp, server)
-
-    @hookimpl
-    def rhoai_health_check(self, server: RHOAIServer) -> tuple[bool, str]:  # noqa: ARG002
-        return True, "Meta tools require no external dependencies"
-
-
 class PromptsPlugin(BasePlugin):
     """Plugin for MCP workflow prompts.
 
@@ -304,6 +240,9 @@ class PromptsPlugin(BasePlugin):
 def get_core_plugins() -> list[BasePlugin]:
     """Return all core domain plugin instances.
 
+    Note: Composite plugins (cluster, training composites, meta) are
+    registered separately via rhoai_mcp.composites.registry.
+
     Returns:
         List of plugin instances for all core domains.
     """
@@ -315,7 +254,5 @@ def get_core_plugins() -> list[BasePlugin]:
         ConnectionsPlugin(),
         StoragePlugin(),
         TrainingPlugin(),
-        SummaryPlugin(),
-        MetaPlugin(),
         PromptsPlugin(),
     ]

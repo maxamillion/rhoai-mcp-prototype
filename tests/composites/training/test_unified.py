@@ -1,9 +1,4 @@
-"""Tests for unified training tool.
-
-Note: The unified training tool has been moved to composites.
-This test file remains for backward compatibility but imports from the new location.
-The canonical test file is tests/composites/training/test_unified.py
-"""
+"""Tests for unified training tool."""
 
 from unittest.mock import MagicMock, patch
 
@@ -28,6 +23,12 @@ def mock_mcp() -> MagicMock:
     mock.tool = capture_tool
     mock._registered_tools = registered_tools
     return mock
+
+
+@pytest.fixture
+def mock_k8s_client() -> MagicMock:
+    """Create a mock K8sClient."""
+    return MagicMock()
 
 
 @pytest.fixture

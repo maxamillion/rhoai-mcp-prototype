@@ -2,6 +2,55 @@
 
 This document covers the internal architecture and implementation patterns for maintainers of the RHOAI MCP server.
 
+## Project Structure Overview
+
+The codebase is organized into two main areas:
+
+```
+src/rhoai_mcp/
+├── domains/              # Pure domain-specific modules
+│   ├── projects/         # Data Science Project CRUD
+│   ├── notebooks/        # Workbench CRUD
+│   ├── inference/        # Model serving CRUD
+│   ├── pipelines/        # Data Science Pipelines CRUD
+│   ├── connections/      # Data connections CRUD
+│   ├── storage/          # PVC CRUD
+│   ├── training/         # Training Operator domain
+│   ├── prompts/          # MCP workflow prompts
+│   └── registry.py       # Domain plugin registry
+│
+└── composites/           # Cross-cutting composite tools
+    ├── cluster/          # Cluster-wide summaries and exploration
+    ├── training/         # Training workflow orchestration
+    ├── meta/             # Tool discovery and guidance
+    └── registry.py       # Composite plugin registry
+```
+
+### Domains vs Composites
+
+**Domains** (`src/rhoai_mcp/domains/`):
+- Pure CRUD operations on specific resource types
+- Self-contained modules with clients, models, and tools
+- No cross-domain imports within tools
+- Example: `create_workbench`, `list_training_jobs`, `delete_model`
+
+**Composites** (`src/rhoai_mcp/composites/`):
+- Cross-cutting tools that orchestrate multiple domains
+- Designed for AI agent efficiency (fewer tool calls)
+- Import from multiple domains
+- Example: `prepare_training`, `explore_cluster`, `diagnose_resource`
+
+### Dependency Flow
+
+```
+composites/ ──imports──> domains/
+     │                      │
+     └──imports──> utils/   │
+                   models/ <─┘
+```
+
+**Important**: One-way dependency: `composites/` imports from `domains/`, never the reverse.
+
 ## Domain-Based Plugin Architecture
 
 Each domain is a self-contained module in `src/rhoai_mcp/domains/` with:
@@ -22,6 +71,8 @@ Domains are registered via the plugin system in `domains/registry.py`. Each plug
 2. Provides metadata via `PluginMetadata`
 3. Implements `@hookimpl` decorated methods for registration
 
+Composite plugins follow the same pattern and are registered in `composites/registry.py`.
+
 ### Available Hooks
 
 | Hook | Purpose |
@@ -36,10 +87,11 @@ Domains are registered via the plugin system in `domains/registry.py`. Each plug
 ## Composite Workflow Tools
 
 These high-level tools combine multiple operations to reduce tool call round-trips for AI agents.
+All composite tools are located in `src/rhoai_mcp/composites/`.
 
 ### `prepare_training()` - Training Pre-flight
 
-**Location:** `src/rhoai_mcp/domains/training/tools/planning.py`
+**Location:** `src/rhoai_mcp/composites/training/planning.py`
 
 **Purpose:** Combines resource estimation, prerequisite checking, config validation, and optional storage creation.
 
@@ -64,7 +116,7 @@ except Exception as e:
 
 ### `explore_cluster()` - Cluster Overview
 
-**Location:** `src/rhoai_mcp/domains/summary/tools.py`
+**Location:** `src/rhoai_mcp/composites/cluster/tools.py`
 
 **Purpose:** Complete cluster exploration with all projects and resource summaries in one call.
 
@@ -85,7 +137,7 @@ if include_health:
 
 ### `diagnose_resource()` - Resource Diagnostics
 
-**Location:** `src/rhoai_mcp/domains/summary/tools.py`
+**Location:** `src/rhoai_mcp/composites/cluster/tools.py`
 
 **Purpose:** Comprehensive diagnostics for any resource type.
 
@@ -126,7 +178,7 @@ MODEL_SIZE_ESTIMATES = {
 
 ## Generic Resource Tools
 
-**Location:** `src/rhoai_mcp/domains/summary/tools.py`
+**Location:** `src/rhoai_mcp/composites/cluster/tools.py`
 
 These provide a unified interface over domain-specific clients: `get_resource()`, `list_resources()`, `manage_resource()`.
 
@@ -144,9 +196,9 @@ if resource_type in ("newtype", "newtypealias"):
     # ... rest of implementation
 ```
 
-## Meta Domain - Tool Discovery
+## Meta Composites - Tool Discovery
 
-**Location:** `src/rhoai_mcp/domains/meta/`
+**Location:** `src/rhoai_mcp/composites/meta/`
 
 Helps AI agents discover the right tools for their tasks.
 
@@ -176,7 +228,7 @@ Add more keywords to existing patterns or create new ones:
 
 ## Unified Training Tool
 
-**Location:** `src/rhoai_mcp/domains/training/tools/unified.py`
+**Location:** `src/rhoai_mcp/composites/training/unified.py`
 
 Single `training()` tool with `action` parameter that consolidates all training operations.
 

@@ -1,4 +1,4 @@
-"""Pydantic models for the summary domain.
+"""Pydantic models for the cluster composite tools.
 
 These models provide compact, token-efficient representations of cluster
 and project status for AI agent context windows.

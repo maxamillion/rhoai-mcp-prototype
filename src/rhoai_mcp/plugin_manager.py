@@ -112,21 +112,33 @@ class PluginManager:
         return count
 
     def load_core_plugins(self) -> int:
-        """Load core domain plugins.
+        """Load core domain plugins and composite plugins.
 
-        Imports and registers all core domain plugins from the registry.
+        Imports and registers all core domain plugins from the domain registry
+        and all composite plugins from the composites registry.
 
         Returns:
-            Number of core plugins loaded.
+            Total number of plugins loaded.
         """
+        from rhoai_mcp.composites.registry import get_composite_plugins
         from rhoai_mcp.domains.registry import get_core_plugins
 
-        plugins = get_core_plugins()
-        for plugin in plugins:
+        # Load core domain plugins
+        domain_plugins = get_core_plugins()
+        for plugin in domain_plugins:
             self.register_plugin(plugin)
 
-        logger.info(f"Loaded {len(plugins)} core domain plugins")
-        return len(plugins)
+        logger.info(f"Loaded {len(domain_plugins)} core domain plugins")
+
+        # Load composite plugins
+        composite_plugins = get_composite_plugins()
+        for plugin in composite_plugins:
+            self.register_plugin(plugin)
+
+        logger.info(f"Loaded {len(composite_plugins)} composite plugins")
+
+        total = len(domain_plugins) + len(composite_plugins)
+        return total
 
     def get_all_metadata(self) -> list[PluginMetadata]:
         """Collect metadata from all registered plugins.

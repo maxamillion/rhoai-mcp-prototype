@@ -1,7 +1,10 @@
 """Training tools for RHOAI MCP.
 
 This module provides a single register_tools function that delegates to all
-training tool submodules.
+training tool submodules (domain-specific only).
+
+Composite training tools (planning, unified, storage) have been moved to
+rhoai_mcp.composites.training and are registered separately.
 """
 
 from __future__ import annotations
@@ -15,10 +18,11 @@ if TYPE_CHECKING:
 
 
 def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
-    """Register all training tools with the MCP server.
+    """Register domain-specific training tools with the MCP server.
 
     This function delegates to the individual tool submodules to register
-    their specific tools.
+    their specific tools. Composite tools (planning, unified, storage) are
+    registered separately via the composites registry.
 
     Args:
         mcp: The FastMCP server instance.
@@ -28,19 +32,14 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
         discovery,
         lifecycle,
         monitoring,
-        planning,
         runtimes,
-        storage,
         training,
-        unified,
     )
 
-    # Register tools from each submodule
+    # Register domain-specific tools only
+    # Composite tools are in rhoai_mcp.composites.training
     discovery.register_tools(mcp, server)
     lifecycle.register_tools(mcp, server)
     monitoring.register_tools(mcp, server)
-    planning.register_tools(mcp, server)
     runtimes.register_tools(mcp, server)
-    storage.register_tools(mcp, server)
     training.register_tools(mcp, server)
-    unified.register_tools(mcp, server)

@@ -8,33 +8,14 @@ from typing import TYPE_CHECKING, Any
 from mcp.server.fastmcp import FastMCP
 
 from rhoai_mcp.domains.training.client import TrainingClient
-from rhoai_mcp.domains.training.models import PeftMethod
-from rhoai_mcp.domains.training.tools.storage import create_training_pvc
+from rhoai_mcp.domains.training.models import (
+    GPU_MEMORY_ESTIMATES,
+    PEFT_MULTIPLIERS,
+    PeftMethod,
+)
 
 if TYPE_CHECKING:
     from rhoai_mcp.server import RHOAIServer
-
-
-# GPU memory estimates by model size (in billions of parameters)
-# Values are approximate based on typical requirements
-GPU_MEMORY_ESTIMATES = {
-    # (min_params, max_params): base_memory_gb
-    (0, 1): 2,
-    (1, 3): 6,
-    (3, 7): 14,
-    (7, 13): 26,
-    (13, 30): 48,
-    (30, 70): 80,
-    (70, 200): 160,
-}
-
-# PEFT method memory multipliers
-PEFT_MULTIPLIERS = {
-    PeftMethod.FULL: 4.0,  # Full fine-tuning needs optimizer states
-    PeftMethod.LORA: 1.8,  # LoRA adds adapter weights
-    PeftMethod.QLORA: 1.2,  # QLoRA uses quantization
-    PeftMethod.DORA: 1.8,  # DoRA similar to LoRA
-}
 
 
 def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
@@ -166,6 +147,7 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
         all_passed = True
 
         # Check 1: Cluster connectivity
+        resources = None
         try:
             resources = client.get_cluster_resources()
             checks.append(
@@ -483,6 +465,8 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
             - next_action: "train" or "fix_issues"
             - suggested_train_params: Parameters for train() call
         """
+        from rhoai_mcp.composites.training.storage import create_training_pvc
+
         issues: list[str] = []
         warnings: list[str] = []
         storage_created = False
@@ -505,9 +489,7 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
                 gpu_available = resources.gpu_info.available
                 required = resource_estimate.get("recommended_gpus", 1)
                 if gpu_available < required:
-                    warnings.append(
-                        f"Only {gpu_available} GPUs available, {required} recommended"
-                    )
+                    warnings.append(f"Only {gpu_available} GPUs available, {required} recommended")
         except Exception as e:
             issues.append(f"Failed to check cluster resources: {e}")
             prereq_passed = False
