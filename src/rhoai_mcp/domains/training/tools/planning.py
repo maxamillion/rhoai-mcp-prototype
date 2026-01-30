@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 from rhoai_mcp.domains.training.client import TrainingClient
 from rhoai_mcp.domains.training.models import PeftMethod
+from rhoai_mcp.domains.training.tools.storage import create_training_pvc
 
 if TYPE_CHECKING:
     from rhoai_mcp.server import RHOAIServer
@@ -557,21 +558,17 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
             # Check if we're allowed to create
             allowed, reason = server.config.is_operation_allowed("create")
             if allowed:
-                try:
-                    server.k8s.create_pvc(
-                        name=pvc_name,
-                        namespace=namespace,
-                        size=f"{storage_size_gb}Gi",
-                        access_modes=["ReadWriteMany"],
-                        labels={
-                            "app.kubernetes.io/managed-by": "rhoai-mcp",
-                            "app.kubernetes.io/component": "training-storage",
-                        },
-                    )
-                    storage_created = True
+                result = create_training_pvc(
+                    k8s=server.k8s,
+                    namespace=namespace,
+                    pvc_name=pvc_name,
+                    size_gb=storage_size_gb,
+                )
+                if result.get("created") or result.get("exists"):
+                    storage_created = result.get("created", False)
                     storage_exists = True
-                except Exception as e:
-                    warnings.append(f"Failed to create storage: {e}")
+                elif result.get("error"):
+                    warnings.append(result["error"])
             else:
                 warnings.append(f"Cannot create storage: {reason}")
 
