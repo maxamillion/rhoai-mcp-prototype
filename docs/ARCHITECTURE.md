@@ -6,7 +6,7 @@ This document covers the internal architecture and implementation patterns for m
 
 The codebase is organized into two main areas:
 
-```
+```text
 src/rhoai_mcp/
 ├── domains/              # Pure domain-specific modules
 │   ├── projects/         # Data Science Project CRUD
@@ -42,7 +42,7 @@ src/rhoai_mcp/
 
 ### Dependency Flow
 
-```
+```text
 composites/ ──imports──> domains/
      │                      │
      └──imports──> utils/   │
@@ -55,7 +55,7 @@ composites/ ──imports──> domains/
 
 Each domain is a self-contained module in `src/rhoai_mcp/domains/` with:
 
-```
+```text
 domains/<name>/
 ├── __init__.py
 ├── client.py      # K8s resource operations

@@ -13,6 +13,7 @@ from rhoai_mcp.domains.training.models import (
     PEFT_MULTIPLIERS,
     PeftMethod,
 )
+from rhoai_mcp.utils.errors import NotFoundError
 
 if TYPE_CHECKING:
     from rhoai_mcp.server import RHOAIServer
@@ -531,10 +532,10 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
 
         try:
             pvc = server.k8s.get_pvc(pvc_name, namespace)
-            if pvc.status.phase == "Bound":
+            if pvc.status and pvc.status.phase == "Bound":
                 storage_exists = True
-        except Exception:
-            pass
+        except NotFoundError:
+            pass  # PVC doesn't exist
 
         if not storage_exists and create_storage:
             # Check if we're allowed to create

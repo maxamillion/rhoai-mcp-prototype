@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Any
 
 from mcp.server.fastmcp import FastMCP
 
+from rhoai_mcp.utils.errors import NotFoundError
+
 if TYPE_CHECKING:
     from rhoai_mcp.clients.base import K8sClient
     from rhoai_mcp.server import RHOAIServer
@@ -38,16 +40,21 @@ def create_training_pvc(
     # Check if PVC already exists
     try:
         existing = k8s.get_pvc(pvc_name, namespace)
+        # Defensive access pattern to avoid AttributeError
+        size = "Unknown"
+        if existing.spec and existing.spec.resources and existing.spec.resources.requests:
+            size = existing.spec.resources.requests.get("storage", "Unknown")
+        status = existing.status.phase if existing.status else "Unknown"
         return {
             "exists": True,
             "created": False,
             "pvc_name": pvc_name,
             "namespace": namespace,
-            "size": existing.spec.resources.requests.get("storage", "Unknown"),
-            "status": existing.status.phase,
+            "size": size,
+            "status": status,
             "message": f"PVC '{pvc_name}' already exists.",
         }
-    except Exception:
+    except NotFoundError:
         pass  # PVC doesn't exist, proceed to create
 
     # If no storage class specified, try to find an NFS or RWX-capable one

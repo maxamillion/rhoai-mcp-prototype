@@ -131,6 +131,9 @@ INTENT_PATTERNS = [
     },
 ]
 
+# Discovery pattern for fallback when no pattern matches
+DISCOVERY_PATTERN = next(p for p in INTENT_PATTERNS if p["category"] == "discovery")
+
 
 def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:  # noqa: ARG001
     """Register meta tools with the MCP server."""
@@ -177,7 +180,7 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:  # noqa: ARG001
 
         if not best_match:
             # Default to discovery
-            best_match = INTENT_PATTERNS[3]  # explore/overview
+            best_match = DISCOVERY_PATTERN
 
         # Build example calls
         example_calls = []

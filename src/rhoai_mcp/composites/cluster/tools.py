@@ -53,8 +53,10 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
         total_connections = 0
 
         for project in projects:
-            if project.resource_summary:
-                summary = project.resource_summary
+            # Get full project with resource summary populated
+            full_project = project_client.get_project(project.metadata.name, include_summary=True)
+            if full_project.resource_summary:
+                summary = full_project.resource_summary
                 total_workbenches += summary.workbenches
                 running_workbenches += summary.workbenches_running
                 total_models += summary.models
@@ -240,6 +242,7 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
 
         # Get cluster resources
         cluster_info: dict = {"nodes": 0, "gpu_available": 0, "gpu_type": None}
+        training_client = None
         try:
             from rhoai_mcp.domains.training.client import TrainingClient
 
@@ -258,14 +261,16 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
         all_issues: list[str] = []
 
         for project in projects:
+            # Get full project with resource summary populated
+            full_project = project_client.get_project(project.metadata.name, include_summary=True)
             proj_info: dict = {
-                "name": project.metadata.name,
-                "display_name": project.display_name,
-                "status": project.status.value,
+                "name": full_project.metadata.name,
+                "display_name": full_project.display_name,
+                "status": full_project.status.value,
             }
 
-            if include_resources and project.resource_summary:
-                summary = project.resource_summary
+            if include_resources and full_project.resource_summary:
+                summary = full_project.resource_summary
                 proj_info["workbenches"] = {
                     "running": summary.workbenches_running,
                     "total": summary.workbenches,
@@ -274,24 +279,37 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
                     "ready": summary.models_ready,
                     "total": summary.models,
                 }
+
+                # Query actual training job counts
+                active_jobs = 0
+                total_jobs = 0
+                if training_client:
+                    try:
+                        jobs = training_client.list_training_jobs(full_project.metadata.name)
+                        total_jobs = len(jobs)
+                        active_jobs = sum(
+                            1 for j in jobs if j.status.value in ("Running", "Created")
+                        )
+                    except Exception:
+                        pass
                 proj_info["training_jobs"] = {
-                    "active": 0,  # Would need to query training client
-                    "total": 0,
+                    "active": active_jobs,
+                    "total": total_jobs,
                 }
                 proj_info["storage"] = summary.storage
                 proj_info["connections"] = summary.data_connections
 
             if include_health:
                 proj_issues = []
-                if project.resource_summary:
-                    s = project.resource_summary
+                if full_project.resource_summary:
+                    s = full_project.resource_summary
                     if s.workbenches > 0 and s.workbenches_running == 0:
                         proj_issues.append("All workbenches stopped")
                     if s.models > 0 and s.models_ready == 0:
                         proj_issues.append("No models ready")
                 if proj_issues:
                     proj_info["issues"] = proj_issues
-                    all_issues.extend([f"{project.metadata.name}: {i}" for i in proj_issues])
+                    all_issues.extend([f"{full_project.metadata.name}: {i}" for i in proj_issues])
 
             project_summaries.append(proj_info)
 
@@ -926,7 +944,7 @@ def _list_resource_names(
             type="models",
             namespace=namespace,
             count=len(models),
-            names=[m.get("name") for m in models],
+            names=[n for n in (m.get("name") for m in models) if n],
         )
 
     if resource_type in ("storage", "pvc", "pvcs"):
@@ -938,7 +956,7 @@ def _list_resource_names(
             type="storage",
             namespace=namespace,
             count=len(storage),
-            names=[s.get("name") for s in storage],
+            names=[n for n in (s.get("name") for s in storage) if n],
         )
 
     if resource_type in ("connection", "connections", "data_connection", "data_connections"):
@@ -950,7 +968,7 @@ def _list_resource_names(
             type="connections",
             namespace=namespace,
             count=len(connections),
-            names=[c.get("name") for c in connections],
+            names=[n for n in (c.get("name") for c in connections) if n],
         )
 
     if resource_type in (

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from rhoai_mcp.composites.meta.tools import (
+    DISCOVERY_PATTERN,
     INTENT_PATTERNS,
     TOOL_CATEGORIES,
     register_tools,
@@ -131,6 +132,18 @@ class TestSuggestTools:
 
         # Check that namespace from context is used
         assert result["example_calls"][0]["args"]["namespace"] == "my-project"
+
+    def test_suggest_unknown_intent_defaults_to_discovery(
+        self, mock_mcp: MagicMock, mock_server: MagicMock
+    ) -> None:
+        """Unknown intent falls back to discovery workflow."""
+        register_tools(mock_mcp, mock_server)
+        suggest_tools = mock_mcp._registered_tools["suggest_tools"]
+
+        result = suggest_tools("completely unrelated gibberish xyz", None)
+
+        assert result["category"] == "discovery"
+        assert "explore_cluster" in result["workflow"]
 
 
 class TestListToolCategories:

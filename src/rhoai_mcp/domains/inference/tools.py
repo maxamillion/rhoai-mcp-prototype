@@ -399,7 +399,7 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
         Returns:
             Pre-flight check results with any issues found.
         """
-        checks: list[dict] = []
+        checks: list[dict[str, Any]] = []
         actions_needed: list[str] = []
         all_passed = True
 

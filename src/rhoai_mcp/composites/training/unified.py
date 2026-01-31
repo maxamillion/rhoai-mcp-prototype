@@ -18,6 +18,7 @@ from rhoai_mcp.domains.training.models import (
     PeftMethod,
     TrainJobStatus,
 )
+from rhoai_mcp.utils.errors import NotFoundError, RHOAIError
 
 if TYPE_CHECKING:
     from rhoai_mcp.server import RHOAIServer
@@ -50,7 +51,7 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
 
     @mcp.tool()
     def training(
-        action: str,
+        action: TrainingAction,
         namespace: str | None = None,
         name: str | None = None,
         # Create action parameters
@@ -63,7 +64,7 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
         learning_rate: float = 1e-4,
         num_nodes: int = 1,
         gpus_per_node: int = 1,
-        checkpoint_dir: str | None = None,
+        checkpoint_storage: str | None = None,
         confirmed: bool = False,
         # Logs parameters
         tail_lines: int = 100,
@@ -113,7 +114,7 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
             learning_rate: Training learning rate.
             num_nodes: Number of training nodes.
             gpus_per_node: GPUs per node.
-            checkpoint_dir: Directory for checkpoints.
+            checkpoint_storage: PVC name for checkpoint storage.
             confirmed: Confirm job creation.
             tail_lines: Number of log lines to return.
             container: Container name for logs.
@@ -123,30 +124,32 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
         Returns:
             Result of the requested action.
         """
-        action = action.lower()
+        action_lower = action.lower()
 
         # Validate common requirements
-        if action not in _VALID_ACTIONS:
+        if action_lower not in _VALID_ACTIONS:
             return {
-                "error": f"Invalid action: {action}",
+                "error": f"Invalid action: {action_lower}",
                 "valid_actions": list(_VALID_ACTIONS),
             }
 
         # Some actions don't require namespace
-        no_namespace_actions = {"list", "estimate"}
-        if action not in no_namespace_actions and namespace is None:
-            return {"error": f"namespace is required for action '{action}'"}
+        no_namespace_actions = {"estimate"}
+        if action_lower not in no_namespace_actions and namespace is None:
+            return {"error": f"namespace is required for action '{action_lower}'"}
 
         # Route to appropriate handler
-        if action == "list":
+        # At this point, namespace is validated for actions that require it
+        if action_lower == "list":
+            assert namespace is not None  # Validated above
             return _action_list(server, namespace)
-        elif action == "get":
+        elif action_lower == "get":
             return _action_get(server, namespace, name)
-        elif action == "status":
+        elif action_lower == "status":
             return _action_status(server, namespace, name)
-        elif action == "progress":
+        elif action_lower == "progress":
             return _action_progress(server, namespace, name)
-        elif action == "create":
+        elif action_lower == "create":
             return _action_create(
                 server,
                 namespace,
@@ -160,29 +163,31 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
                 learning_rate,
                 num_nodes,
                 gpus_per_node,
-                checkpoint_dir,
+                checkpoint_storage,
                 confirmed,
             )
-        elif action == "suspend":
+        elif action_lower == "suspend":
             return _action_suspend(server, namespace, name)
-        elif action == "resume":
+        elif action_lower == "resume":
             return _action_resume(server, namespace, name)
-        elif action == "delete":
+        elif action_lower == "delete":
             return _action_delete(server, namespace, name, confirm)
-        elif action == "logs":
+        elif action_lower == "logs":
             return _action_logs(server, namespace, name, container, tail_lines, previous)
-        elif action == "events":
+        elif action_lower == "events":
             return _action_events(server, namespace, name)
-        elif action == "checkpoints":
+        elif action_lower == "checkpoints":
             return _action_checkpoints(server, namespace, name)
-        elif action == "estimate":
+        elif action_lower == "estimate":
             return _action_estimate(server, model_id, method)
-        elif action == "validate":
+        elif action_lower == "validate":
             return _action_validate(server, namespace, model_id, dataset_id, runtime_name)
-        elif action == "prerequisites":
-            return _action_prerequisites(server, namespace, model_id, dataset_id, checkpoint_dir)
+        elif action_lower == "prerequisites":
+            return _action_prerequisites(
+                server, namespace, model_id, dataset_id, checkpoint_storage
+            )
 
-        return {"error": f"Action '{action}' not implemented"}
+        return {"error": f"Action '{action_lower}' not implemented"}
 
 
 _VALID_ACTIONS = {
@@ -203,11 +208,8 @@ _VALID_ACTIONS = {
 }
 
 
-def _action_list(server: RHOAIServer, namespace: str | None) -> dict[str, Any]:
+def _action_list(server: RHOAIServer, namespace: str) -> dict[str, Any]:
     """List training jobs."""
-    if namespace is None:
-        return {"error": "namespace is required for list action"}
-
     client = TrainingClient(server.k8s)
     jobs = client.list_training_jobs(namespace)
 
@@ -327,7 +329,7 @@ def _action_create(
     learning_rate: float,
     num_nodes: int,
     gpus_per_node: int,
-    checkpoint_dir: str | None,
+    checkpoint_storage: str | None,
     confirmed: bool,
 ) -> dict[str, Any]:
     """Create a training job."""
@@ -376,7 +378,7 @@ def _action_create(
         "learning_rate": learning_rate,
         "num_nodes": num_nodes,
         "gpus_per_node": gpus_per_node,
-        "checkpoint_dir": checkpoint_dir,
+        "checkpoint_storage": checkpoint_storage,
     }
 
     if not confirmed:
@@ -400,7 +402,7 @@ def _action_create(
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
-        checkpoint_dir=checkpoint_dir,
+        checkpoint_dir=checkpoint_storage,
     )
 
     return {
@@ -632,7 +634,7 @@ def _action_validate(
         from rhoai_mcp.domains.training.crds import TrainingCRDs
 
         server.k8s.get(TrainingCRDs.CLUSTER_TRAINING_RUNTIME, runtime_name)
-    except Exception:
+    except (NotFoundError, RHOAIError):
         errors.append(f"Runtime '{runtime_name}' not found")
 
     # Validate model ID format
@@ -706,7 +708,7 @@ def _action_prerequisites(
             )
             all_passed = False
             actions_needed.append("Ensure GPU nodes are available")
-    except Exception as e:
+    except RHOAIError as e:
         checks.append(
             {
                 "name": "Cluster connectivity",
@@ -737,7 +739,7 @@ def _action_prerequisites(
             )
             all_passed = False
             actions_needed.append("Create a training runtime")
-    except Exception:
+    except RHOAIError:
         checks.append(
             {
                 "name": "Training runtimes",
@@ -768,7 +770,8 @@ def _action_prerequisites(
     if checkpoint_storage:
         try:
             pvc = server.k8s.get_pvc(checkpoint_storage, namespace)
-            if pvc.status.phase == "Bound":
+            pvc_phase = pvc.status.phase if pvc.status else "Unknown"
+            if pvc_phase == "Bound":
                 checks.append(
                     {
                         "name": "Checkpoint storage",
@@ -781,11 +784,11 @@ def _action_prerequisites(
                     {
                         "name": "Checkpoint storage",
                         "passed": False,
-                        "message": f"PVC state: {pvc.status.phase}",
+                        "message": f"PVC state: {pvc_phase}",
                     }
                 )
                 all_passed = False
-        except Exception:
+        except NotFoundError:
             checks.append(
                 {
                     "name": "Checkpoint storage",

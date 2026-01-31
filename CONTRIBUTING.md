@@ -4,7 +4,7 @@ This document describes the architecture and contribution guidelines for the RHO
 
 ## Repository Structure
 
-```
+```text
 rhoai-mcp/
 ├── src/
 │   └── rhoai_mcp/            # Main package
@@ -112,7 +112,7 @@ make run-local-debug
 
 Each domain module in `src/rhoai_mcp/domains/` follows this layout:
 
-```
+```text
 domains/<name>/
 ├── __init__.py          # Exports public API
 ├── client.py            # K8s resource client
@@ -125,7 +125,7 @@ domains/<name>/
 
 The `prompts` domain is special - it only contains prompts (no client or models):
 
-```
+```text
 domains/prompts/
 ├── __init__.py
 ├── prompts.py                  # Main registration
