@@ -51,7 +51,11 @@ class DataScienceProject(BaseModel):
                 status = ResourceStatus.UNKNOWN
 
         return cls(
-            metadata=ResourceMetadata.from_k8s_metadata(metadata),
+            metadata=ResourceMetadata.from_k8s_metadata(
+                metadata,
+                kind="Project",
+                api_version="project.openshift.io/v1",
+            ),
             display_name=annotations.get("openshift.io/display-name"),
             description=annotations.get("openshift.io/description"),
             requester=annotations.get("openshift.io/requester"),

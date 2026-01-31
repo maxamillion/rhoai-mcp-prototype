@@ -38,6 +38,7 @@ class InferenceClient:
                     "model_format": model.model_format,
                     "status": model.status.value,
                     "url": model.url,
+                    "_source": model.metadata.to_source_dict(),
                 }
             )
         return results

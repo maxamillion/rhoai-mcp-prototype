@@ -60,7 +60,11 @@ class Storage(BaseModel):
             size = spec.resources.requests.get("storage", "unknown")
 
         return cls(
-            metadata=ResourceMetadata.from_k8s_metadata(metadata),
+            metadata=ResourceMetadata.from_k8s_metadata(
+                metadata,
+                kind="PersistentVolumeClaim",
+                api_version="v1",
+            ),
             display_name=annotations.get("openshift.io/display-name"),
             size=size,
             access_modes=list(spec.access_modes) if spec and spec.access_modes else [],

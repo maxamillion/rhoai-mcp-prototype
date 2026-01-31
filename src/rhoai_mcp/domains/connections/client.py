@@ -37,6 +37,7 @@ class ConnectionClient:
                     "endpoint": conn.aws_s3_endpoint,
                     "bucket": conn.aws_s3_bucket,
                     "region": conn.aws_default_region,
+                    "_source": conn.metadata.to_source_dict(),
                 }
             )
         return results

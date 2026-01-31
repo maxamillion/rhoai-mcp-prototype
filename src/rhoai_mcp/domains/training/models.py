@@ -107,6 +107,8 @@ class TrainJob(BaseModel):
     name: str = Field(..., description="Job name")
     namespace: str = Field(..., description="Job namespace")
     uid: str | None = Field(None, description="Kubernetes UID")
+    kind: str = Field("TrainJob", description="Resource kind")
+    api_version: str = Field("trainer.kubeflow.org/v1", description="API version")
     status: TrainJobStatus = Field(TrainJobStatus.CREATED, description="Job status")
     model_id: str | None = Field(None, description="Model identifier (e.g., org/model)")
     dataset_id: str | None = Field(None, description="Dataset identifier")
@@ -117,6 +119,16 @@ class TrainJob(BaseModel):
     runtime_ref: str | None = Field(None, description="Reference to training runtime")
     checkpoint_dir: str | None = Field(None, description="Checkpoint directory path")
     creation_timestamp: str | None = Field(None, description="When the job was created")
+
+    def to_source_dict(self) -> dict[str, Any]:
+        """Return _source metadata for grounding responses to K8s resources."""
+        return {
+            "kind": self.kind,
+            "api_version": self.api_version,
+            "name": self.name,
+            "namespace": self.namespace,
+            "uid": self.uid,
+        }
 
     @classmethod
     def from_resource(cls, resource: Any) -> TrainJob:

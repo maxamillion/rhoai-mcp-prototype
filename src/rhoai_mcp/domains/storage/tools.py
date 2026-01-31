@@ -105,6 +105,7 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             "size": storage.size,
             "status": storage.status.value,
             "message": f"Storage '{name}' created successfully",
+            "_source": storage.metadata.to_source_dict(),
         }
 
     @mcp.tool()
@@ -148,4 +149,11 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             "namespace": namespace,
             "deleted": True,
             "message": f"Storage '{name}' deleted",
+            "_source": {
+                "kind": "PersistentVolumeClaim",
+                "api_version": "v1",
+                "name": name,
+                "namespace": namespace,
+                "uid": None,
+            },
         }

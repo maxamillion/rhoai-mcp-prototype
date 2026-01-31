@@ -91,6 +91,7 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
                 if conn.metadata.creation_timestamp
                 else None
             ),
+            "_source": conn.metadata.to_source_dict(),
         }
 
     @mcp.tool()
@@ -146,6 +147,7 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             "type": conn.connection_type,
             "bucket": conn.aws_s3_bucket,
             "message": f"Data connection '{name}' created successfully",
+            "_source": conn.metadata.to_source_dict(),
         }
 
     @mcp.tool()
@@ -189,4 +191,11 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             "namespace": namespace,
             "deleted": True,
             "message": f"Data connection '{name}' deleted",
+            "_source": {
+                "kind": "Secret",
+                "api_version": "v1",
+                "name": name,
+                "namespace": namespace,
+                "uid": None,
+            },
         }

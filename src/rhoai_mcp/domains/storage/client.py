@@ -19,17 +19,21 @@ class StorageClient:
         """List all PVCs in a namespace."""
         pvcs = self._k8s.list_pvcs(namespace=namespace)
 
-        return [
-            {
-                "name": pvc.metadata.name,
-                "display_name": (pvc.metadata.annotations or {}).get("openshift.io/display-name"),
-                "size": Storage.from_pvc(pvc).size,
-                "access_modes": list(pvc.spec.access_modes) if pvc.spec else [],
-                "storage_class": pvc.spec.storage_class_name if pvc.spec else None,
-                "status": Storage.from_pvc(pvc).status.value,
-            }
-            for pvc in pvcs
-        ]
+        results = []
+        for pvc in pvcs:
+            storage = Storage.from_pvc(pvc)
+            results.append(
+                {
+                    "name": storage.metadata.name,
+                    "display_name": storage.display_name,
+                    "size": storage.size,
+                    "access_modes": storage.access_modes,
+                    "storage_class": storage.storage_class,
+                    "status": storage.status.value,
+                    "_source": storage.metadata.to_source_dict(),
+                }
+            )
+        return results
 
     def get_storage(self, name: str, namespace: str) -> Storage:
         """Get a PVC by name."""

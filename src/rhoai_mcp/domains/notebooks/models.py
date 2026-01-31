@@ -112,7 +112,11 @@ class Workbench(BaseModel):
                 conditions.append(Condition.from_k8s_condition(cond))
 
         return cls(
-            metadata=ResourceMetadata.from_k8s_metadata(metadata),
+            metadata=ResourceMetadata.from_k8s_metadata(
+                metadata,
+                kind="Notebook",
+                api_version="kubeflow.org/v1",
+            ),
             display_name=annotations.get("openshift.io/display-name"),
             image=image,
             image_display_name=annotations.get(RHOAIAnnotations.IMAGE_DISPLAY_NAME),

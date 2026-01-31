@@ -150,6 +150,7 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             "namespace": isvc.metadata.namespace,
             "status": isvc.status.value,
             "message": f"Model '{name}' deployment initiated. It may take a few minutes to become ready.",
+            "_source": isvc.metadata.to_source_dict(),
         }
 
     @mcp.tool()
@@ -187,6 +188,13 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             "namespace": namespace,
             "deleted": True,
             "message": f"Model deployment '{name}' deleted",
+            "_source": {
+                "kind": "InferenceService",
+                "api_version": "serving.kserve.io/v1beta1",
+                "name": name,
+                "namespace": namespace,
+                "uid": None,
+            },
         }
 
     @mcp.tool()

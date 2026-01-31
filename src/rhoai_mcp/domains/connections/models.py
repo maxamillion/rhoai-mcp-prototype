@@ -59,7 +59,11 @@ class DataConnection(BaseModel):
             )
 
         return cls(
-            metadata=ResourceMetadata.from_k8s_metadata(metadata),
+            metadata=ResourceMetadata.from_k8s_metadata(
+                metadata,
+                kind="Secret",
+                api_version="v1",
+            ),
             display_name=annotations.get("openshift.io/display-name"),
             connection_type=annotations.get("opendatahub.io/connection-type", "s3"),
             aws_access_key_id=access_key,

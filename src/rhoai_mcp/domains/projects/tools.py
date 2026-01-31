@@ -125,6 +125,7 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             "is_modelmesh_enabled": project.is_modelmesh_enabled,
             "status": project.status.value,
             "message": f"Project '{name}' created successfully",
+            "_source": project.metadata.to_source_dict(),
         }
 
     @mcp.tool()
@@ -165,6 +166,13 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             "name": name,
             "deleted": True,
             "message": f"Project '{name}' deletion initiated",
+            "_source": {
+                "kind": "Project",
+                "api_version": "project.openshift.io/v1",
+                "name": name,
+                "namespace": None,
+                "uid": None,
+            },
         }
 
     @mcp.tool()
@@ -200,4 +208,5 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             "name": project.metadata.name,
             "is_modelmesh_enabled": project.is_modelmesh_enabled,
             "message": f"Model serving mode set to {mode}",
+            "_source": project.metadata.to_source_dict(),
         }

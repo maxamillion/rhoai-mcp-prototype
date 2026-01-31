@@ -27,16 +27,38 @@ class ResourceMetadata(BaseModel):
     name: str = Field(..., description="Resource name")
     namespace: str | None = Field(None, description="Resource namespace")
     uid: str | None = Field(None, description="Kubernetes UID")
+    kind: str | None = Field(None, description="Resource kind")
+    api_version: str | None = Field(None, description="API version")
     creation_timestamp: datetime | None = Field(None, description="When the resource was created")
     labels: dict[str, str] = Field(default_factory=dict, description="Resource labels")
     annotations: dict[str, str] = Field(default_factory=dict, description="Resource annotations")
 
+    def to_source_dict(self) -> dict[str, Any]:
+        """Return _source metadata for grounding responses to K8s resources."""
+        return {
+            "kind": self.kind,
+            "api_version": self.api_version,
+            "name": self.name,
+            "namespace": self.namespace,
+            "uid": self.uid,
+        }
+
     @classmethod
-    def from_k8s_metadata(cls, metadata: Any) -> "ResourceMetadata":
+    def from_k8s_metadata(
+        cls,
+        metadata: Any,
+        kind: str | None = None,
+        api_version: str | None = None,
+    ) -> "ResourceMetadata":
         """Create from Kubernetes metadata object.
 
         Handles both core API objects (which return plain dicts) and
         dynamic client objects (which return ResourceField objects).
+
+        Args:
+            metadata: Kubernetes metadata object.
+            kind: Resource kind (e.g., "Notebook", "InferenceService").
+            api_version: API version (e.g., "kubeflow.org/v1").
         """
         # Convert labels/annotations to plain dicts if they're ResourceField objects
         labels = metadata.labels
@@ -50,6 +72,8 @@ class ResourceMetadata(BaseModel):
             name=metadata.name,
             namespace=getattr(metadata, "namespace", None),
             uid=getattr(metadata, "uid", None),
+            kind=kind,
+            api_version=api_version,
             creation_timestamp=getattr(metadata, "creation_timestamp", None),
             labels=labels or {},
             annotations=annotations or {},

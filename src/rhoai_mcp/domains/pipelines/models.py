@@ -67,7 +67,11 @@ class PipelineServer(BaseModel):
                     object_store_available = cond_status
 
         return cls(
-            metadata=ResourceMetadata.from_k8s_metadata(metadata),
+            metadata=ResourceMetadata.from_k8s_metadata(
+                metadata,
+                kind="DataSciencePipelinesApplication",
+                api_version="datasciencepipelinesapplications.opendatahub.io/v1alpha1",
+            ),
             status=server_status,
             api_server_ready=api_server_ready,
             persistence_agent_ready=persistence_agent_ready,

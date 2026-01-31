@@ -105,7 +105,11 @@ class InferenceService(BaseModel):
                 internal_url = getattr(address, "url", None)
 
         return cls(
-            metadata=ResourceMetadata.from_k8s_metadata(metadata),
+            metadata=ResourceMetadata.from_k8s_metadata(
+                metadata,
+                kind="InferenceService",
+                api_version="serving.kserve.io/v1beta1",
+            ),
             display_name=annotations.get("openshift.io/display-name"),
             runtime=runtime,
             model_format=model_format,

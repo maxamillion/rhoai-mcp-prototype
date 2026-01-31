@@ -121,9 +121,19 @@ class TestResponseBuilderWorkbench:
         wb = MagicMock()
         wb.metadata.name = "test-wb"
         wb.metadata.namespace = "test-ns"
+        wb.metadata.uid = "test-uid-123"
+        wb.metadata.kind = "Notebook"
+        wb.metadata.api_version = "kubeflow.org/v1"
         wb.metadata.labels = {"app": "jupyter"}
         wb.metadata.annotations = {"note": "test"}
         wb.metadata.creation_timestamp = datetime(2024, 1, 1, 0, 0, 0)
+        wb.metadata.to_source_dict.return_value = {
+            "kind": "Notebook",
+            "api_version": "kubeflow.org/v1",
+            "name": "test-wb",
+            "namespace": "test-ns",
+            "uid": "test-uid-123",
+        }
         wb.display_name = "Test Workbench"
         wb.status.value = "Running"
         wb.image = "jupyter:latest"
@@ -149,10 +159,11 @@ class TestResponseBuilderWorkbench:
         """Test minimal verbosity returns only essential fields."""
         result = ResponseBuilder.workbench_list_item(mock_workbench, Verbosity.MINIMAL)
 
-        assert result == {
-            "name": "test-wb",
-            "status": "Running",
-        }
+        assert result["name"] == "test-wb"
+        assert result["status"] == "Running"
+        assert "_source" in result
+        assert result["_source"]["kind"] == "Notebook"
+        assert result["_source"]["api_version"] == "kubeflow.org/v1"
 
     def test_workbench_list_item_standard(self, mock_workbench: MagicMock) -> None:
         """Test standard verbosity returns key fields."""
@@ -163,6 +174,7 @@ class TestResponseBuilderWorkbench:
         assert "display_name" in result
         assert "image" in result
         assert "url" in result
+        assert "_source" in result
         # Should not include labels/annotations in standard
         assert "labels" not in result
         assert "annotations" not in result
@@ -175,17 +187,18 @@ class TestResponseBuilderWorkbench:
         assert "annotations" in result
         assert "conditions" in result
         assert "resources" in result
+        assert "_source" in result
 
     def test_workbench_detail_minimal(self, mock_workbench: MagicMock) -> None:
         """Test minimal verbosity for detail view."""
         result = ResponseBuilder.workbench_detail(mock_workbench, Verbosity.MINIMAL)
 
-        assert result == {
-            "name": "test-wb",
-            "namespace": "test-ns",
-            "status": "Running",
-            "url": "https://test-wb.example.com",
-        }
+        assert result["name"] == "test-wb"
+        assert result["namespace"] == "test-ns"
+        assert result["status"] == "Running"
+        assert result["url"] == "https://test-wb.example.com"
+        assert "_source" in result
+        assert result["_source"]["kind"] == "Notebook"
 
 
 class TestResponseBuilderProject:
@@ -196,9 +209,20 @@ class TestResponseBuilderProject:
         """Create a mock project model."""
         project = MagicMock()
         project.metadata.name = "test-project"
+        project.metadata.namespace = None
+        project.metadata.uid = "project-uid-123"
+        project.metadata.kind = "Project"
+        project.metadata.api_version = "project.openshift.io/v1"
         project.metadata.labels = {"team": "ml"}
         project.metadata.annotations = {}
         project.metadata.creation_timestamp = datetime(2024, 1, 1, 0, 0, 0)
+        project.metadata.to_source_dict.return_value = {
+            "kind": "Project",
+            "api_version": "project.openshift.io/v1",
+            "name": "test-project",
+            "namespace": None,
+            "uid": "project-uid-123",
+        }
         project.display_name = "Test Project"
         project.description = "A test project"
         project.requester = "user@example.com"
@@ -218,10 +242,10 @@ class TestResponseBuilderProject:
         """Test minimal verbosity for project list."""
         result = ResponseBuilder.project_list_item(mock_project, Verbosity.MINIMAL)
 
-        assert result == {
-            "name": "test-project",
-            "status": "Active",
-        }
+        assert result["name"] == "test-project"
+        assert result["status"] == "Active"
+        assert "_source" in result
+        assert result["_source"]["kind"] == "Project"
 
     def test_project_list_item_standard(self, mock_project: MagicMock) -> None:
         """Test standard verbosity for project list."""
@@ -231,6 +255,7 @@ class TestResponseBuilderProject:
         assert "display_name" in result
         assert "description" in result
         assert "is_modelmesh_enabled" in result
+        assert "_source" in result
         assert "labels" not in result
 
     def test_project_detail_minimal_includes_resources(
@@ -243,6 +268,8 @@ class TestResponseBuilderProject:
         assert "resources" in result
         assert result["resources"]["workbenches"] == 3
         assert result["resources"]["models"] == 1
+        assert "_source" in result
+        assert result["_source"]["kind"] == "Project"
 
 
 class TestResponseBuilderTrainingJob:
@@ -254,6 +281,16 @@ class TestResponseBuilderTrainingJob:
         job = MagicMock()
         job.name = "train-abc123"
         job.namespace = "test-ns"
+        job.uid = "train-uid-123"
+        job.kind = "TrainJob"
+        job.api_version = "trainer.kubeflow.org/v1"
+        job.to_source_dict.return_value = {
+            "kind": "TrainJob",
+            "api_version": "trainer.kubeflow.org/v1",
+            "name": "train-abc123",
+            "namespace": "test-ns",
+            "uid": "train-uid-123",
+        }
         job.status.value = "Running"
         job.model_id = "llama-7b"
         job.dataset_id = "alpaca"
@@ -285,11 +322,11 @@ class TestResponseBuilderTrainingJob:
             mock_training_job, Verbosity.MINIMAL
         )
 
-        assert result == {
-            "name": "train-abc123",
-            "status": "Running",
-            "progress_percent": 50.0,
-        }
+        assert result["name"] == "train-abc123"
+        assert result["status"] == "Running"
+        assert result["progress_percent"] == 50.0
+        assert "_source" in result
+        assert result["_source"]["kind"] == "TrainJob"
 
     def test_training_job_list_item_standard(
         self, mock_training_job: MagicMock
@@ -302,6 +339,7 @@ class TestResponseBuilderTrainingJob:
         assert "name" in result
         assert "model_id" in result
         assert "progress" in result
+        assert "_source" in result
         assert "gpus_per_node" not in result  # Not in standard
 
     def test_training_job_detail_full(self, mock_training_job: MagicMock) -> None:
@@ -312,3 +350,49 @@ class TestResponseBuilderTrainingJob:
 
         assert "progress" in result
         assert "gradient_norm" in result["progress"]
+        assert "_source" in result
+        assert result["_source"]["kind"] == "TrainJob"
+
+
+class TestResourceMetadataToSourceDict:
+    """Tests for ResourceMetadata.to_source_dict method."""
+
+    def test_to_source_dict_returns_expected_fields(self) -> None:
+        """Test that to_source_dict returns all expected fields."""
+        from rhoai_mcp.models.common import ResourceMetadata
+
+        metadata = ResourceMetadata(
+            name="test-resource",
+            namespace="test-ns",
+            uid="uid-123",
+            kind="Notebook",
+            api_version="kubeflow.org/v1",
+        )
+
+        source = metadata.to_source_dict()
+
+        assert source == {
+            "kind": "Notebook",
+            "api_version": "kubeflow.org/v1",
+            "name": "test-resource",
+            "namespace": "test-ns",
+            "uid": "uid-123",
+        }
+
+    def test_to_source_dict_with_none_values(self) -> None:
+        """Test that to_source_dict handles None values."""
+        from rhoai_mcp.models.common import ResourceMetadata
+
+        metadata = ResourceMetadata(
+            name="test-resource",
+        )
+
+        source = metadata.to_source_dict()
+
+        assert source == {
+            "kind": None,
+            "api_version": None,
+            "name": "test-resource",
+            "namespace": None,
+            "uid": None,
+        }

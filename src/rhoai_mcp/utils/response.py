@@ -107,6 +107,7 @@ class ResponseBuilder:
             return {
                 "name": wb.metadata.name,
                 "status": wb.status.value,
+                "_source": wb.metadata.to_source_dict(),
             }
 
         # STANDARD - current list behavior
@@ -125,6 +126,7 @@ class ResponseBuilder:
                 if wb.metadata.creation_timestamp
                 else None
             ),
+            "_source": wb.metadata.to_source_dict(),
         }
 
         if verbosity == Verbosity.FULL:
@@ -170,6 +172,7 @@ class ResponseBuilder:
                 "namespace": wb.metadata.namespace,
                 "status": wb.status.value,
                 "url": wb.url,
+                "_source": wb.metadata.to_source_dict(),
             }
 
         # STANDARD and FULL share the same base
@@ -190,6 +193,7 @@ class ResponseBuilder:
                 if wb.metadata.creation_timestamp
                 else None
             ),
+            "_source": wb.metadata.to_source_dict(),
         }
 
         if wb.resources:
@@ -233,6 +237,7 @@ class ResponseBuilder:
             return {
                 "name": p.metadata.name,
                 "status": p.status.value,
+                "_source": p.metadata.to_source_dict(),
             }
 
         result: dict[str, Any] = {
@@ -245,6 +250,7 @@ class ResponseBuilder:
             "created": (
                 p.metadata.creation_timestamp.isoformat() if p.metadata.creation_timestamp else None
             ),
+            "_source": p.metadata.to_source_dict(),
         }
 
         if verbosity == Verbosity.FULL:
@@ -271,6 +277,7 @@ class ResponseBuilder:
             result: dict[str, Any] = {
                 "name": project.metadata.name,
                 "status": project.status.value,
+                "_source": project.metadata.to_source_dict(),
             }
             if project.resource_summary:
                 result["resources"] = {
@@ -291,6 +298,7 @@ class ResponseBuilder:
                 if project.metadata.creation_timestamp
                 else None
             ),
+            "_source": project.metadata.to_source_dict(),
         }
 
         if project.resource_summary:
@@ -359,6 +367,7 @@ class ResponseBuilder:
                 "namespace": isvc.metadata.namespace,
                 "status": isvc.status.value,
                 "url": isvc.url,
+                "_source": isvc.metadata.to_source_dict(),
             }
 
         result: dict[str, Any] = {
@@ -376,6 +385,7 @@ class ResponseBuilder:
                 if isvc.metadata.creation_timestamp
                 else None
             ),
+            "_source": isvc.metadata.to_source_dict(),
         }
 
         if isvc.resources:
@@ -467,6 +477,7 @@ class ResponseBuilder:
             result: dict[str, Any] = {
                 "name": job.name,
                 "status": job.status.value,
+                "_source": job.to_source_dict(),
             }
             if job.progress:
                 result["progress_percent"] = round(job.progress.progress_percent, 1)
@@ -480,6 +491,7 @@ class ResponseBuilder:
             "dataset_id": job.dataset_id,
             "num_nodes": job.num_nodes,
             "created": job.creation_timestamp,
+            "_source": job.to_source_dict(),
         }
 
         if job.progress:
@@ -521,6 +533,7 @@ class ResponseBuilder:
                 "name": job.name,
                 "namespace": job.namespace,
                 "status": job.status.value,
+                "_source": job.to_source_dict(),
             }
             if job.progress:
                 result["progress_percent"] = round(job.progress.progress_percent, 1)
@@ -537,6 +550,7 @@ class ResponseBuilder:
             "runtime_ref": job.runtime_ref,
             "checkpoint_dir": job.checkpoint_dir,
             "created": job.creation_timestamp,
+            "_source": job.to_source_dict(),
         }
 
         if job.progress:

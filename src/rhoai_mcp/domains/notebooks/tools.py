@@ -152,6 +152,7 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             "status": wb.status.value,
             "url": wb.url,
             "message": f"Workbench '{name}' created successfully. It will start automatically.",
+            "_source": wb.metadata.to_source_dict(),
         }
 
     @mcp.tool()
@@ -181,6 +182,7 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             "status": wb.status.value,
             "url": wb.url,
             "message": f"Workbench '{name}' is starting",
+            "_source": wb.metadata.to_source_dict(),
         }
 
     @mcp.tool()
@@ -210,6 +212,7 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             "status": wb.status.value,
             "stopped_time": wb.stopped_time.isoformat() if wb.stopped_time else None,
             "message": f"Workbench '{name}' is stopping",
+            "_source": wb.metadata.to_source_dict(),
         }
 
     @mcp.tool()
@@ -253,6 +256,13 @@ def register_tools(mcp: FastMCP, server: "RHOAIServer") -> None:
             "namespace": namespace,
             "deleted": True,
             "message": f"Workbench '{name}' deleted. PVC '{name}-pvc' was preserved.",
+            "_source": {
+                "kind": "Notebook",
+                "api_version": "kubeflow.org/v1",
+                "name": name,
+                "namespace": namespace,
+                "uid": None,
+            },
         }
 
     @mcp.tool()
