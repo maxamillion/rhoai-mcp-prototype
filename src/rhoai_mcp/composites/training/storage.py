@@ -6,8 +6,90 @@ from typing import TYPE_CHECKING, Any
 
 from mcp.server.fastmcp import FastMCP
 
+from rhoai_mcp.utils.errors import NotFoundError
+
 if TYPE_CHECKING:
+    from rhoai_mcp.clients.base import K8sClient
     from rhoai_mcp.server import RHOAIServer
+
+
+def create_training_pvc(
+    k8s: K8sClient,
+    namespace: str,
+    pvc_name: str,
+    size_gb: int,
+    access_mode: str = "ReadWriteMany",
+    storage_class: str | None = None,
+) -> dict[str, Any]:
+    """Create a PVC for training checkpoints and data.
+
+    This is the shared implementation used by both setup_training_storage
+    and prepare_training tools.
+
+    Args:
+        k8s: Kubernetes client instance.
+        namespace: The namespace to create the PVC in.
+        pvc_name: Name for the PVC.
+        size_gb: Size in GB.
+        access_mode: Access mode (default: "ReadWriteMany" for distributed training).
+        storage_class: Storage class to use (auto-detected if not specified).
+
+    Returns:
+        PVC creation result with success/error status.
+    """
+    # Check if PVC already exists
+    try:
+        existing = k8s.get_pvc(pvc_name, namespace)
+        # Defensive access pattern to avoid AttributeError
+        size = "Unknown"
+        if existing.spec and existing.spec.resources and existing.spec.resources.requests:
+            size = existing.spec.resources.requests.get("storage", "Unknown")
+        status = existing.status.phase if existing.status else "Unknown"
+        return {
+            "exists": True,
+            "created": False,
+            "pvc_name": pvc_name,
+            "namespace": namespace,
+            "size": size,
+            "status": status,
+            "message": f"PVC '{pvc_name}' already exists.",
+        }
+    except NotFoundError:
+        pass  # PVC doesn't exist, proceed to create
+
+    # If no storage class specified, try to find an NFS or RWX-capable one
+    if not storage_class and access_mode == "ReadWriteMany":
+        storage_class = _find_rwx_storage_class(k8s)
+
+    # Create the PVC
+    try:
+        k8s.create_pvc(
+            name=pvc_name,
+            namespace=namespace,
+            size=f"{size_gb}Gi",
+            access_modes=[access_mode],
+            storage_class=storage_class,
+            labels={
+                "app.kubernetes.io/managed-by": "rhoai-mcp",
+                "app.kubernetes.io/component": "training-storage",
+            },
+        )
+
+        return {
+            "exists": False,
+            "created": True,
+            "pvc_name": pvc_name,
+            "namespace": namespace,
+            "size": f"{size_gb}Gi",
+            "access_mode": access_mode,
+            "storage_class": storage_class,
+            "message": f"PVC '{pvc_name}' created. It may take a moment to bind.",
+        }
+    except Exception as e:
+        return {
+            "error": f"Failed to create PVC: {e}",
+            "created": False,
+        }
 
 
 def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
@@ -41,51 +123,20 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
         if not allowed:
             return {"error": reason}
 
-        # Check if PVC already exists
-        try:
-            existing = server.k8s.get_pvc(pvc_name, namespace)
-            return {
-                "exists": True,
-                "pvc_name": pvc_name,
-                "namespace": namespace,
-                "size": existing.spec.resources.requests.get("storage", "Unknown"),
-                "status": existing.status.phase,
-                "message": f"PVC '{pvc_name}' already exists.",
-            }
-        except Exception:
-            pass  # PVC doesn't exist, proceed to create
+        result = create_training_pvc(
+            k8s=server.k8s,
+            namespace=namespace,
+            pvc_name=pvc_name,
+            size_gb=size_gb,
+            access_mode=access_mode,
+            storage_class=storage_class,
+        )
 
-        # If no storage class specified, try to find an NFS or RWX-capable one
-        if not storage_class and access_mode == "ReadWriteMany":
-            storage_class = _find_rwx_storage_class(server.k8s)
+        # Add success field for backward compatibility
+        if result.get("created"):
+            result["success"] = True
 
-        # Create the PVC
-        try:
-            server.k8s.create_pvc(
-                name=pvc_name,
-                namespace=namespace,
-                size=f"{size_gb}Gi",
-                access_modes=[access_mode],
-                storage_class=storage_class,
-                labels={
-                    "app.kubernetes.io/managed-by": "rhoai-mcp",
-                    "app.kubernetes.io/component": "training-storage",
-                },
-            )
-
-            return {
-                "success": True,
-                "pvc_name": pvc_name,
-                "namespace": namespace,
-                "size": f"{size_gb}Gi",
-                "access_mode": access_mode,
-                "storage_class": storage_class,
-                "message": f"PVC '{pvc_name}' created. It may take a moment to bind.",
-            }
-        except Exception as e:
-            return {
-                "error": f"Failed to create PVC: {e}",
-            }
+        return result
 
     @mcp.tool()
     def setup_nfs_storage() -> dict[str, Any]:
@@ -178,89 +229,8 @@ def register_tools(mcp: FastMCP, server: RHOAIServer) -> None:
             "namespace": namespace,
         }
 
-    @mcp.tool()
-    def list_storage(namespace: str) -> dict[str, Any]:
-        """List storage resources in a namespace.
-
-        Returns all PVCs in the namespace with their status and
-        capacity information.
-
-        Args:
-            namespace: The namespace to list storage from.
-
-        Returns:
-            List of PVCs with status information.
-        """
-        pvcs = server.k8s.list_pvcs(namespace)
-
-        pvc_list = []
-        for pvc in pvcs:
-            storage = "Unknown"
-            if pvc.spec and pvc.spec.resources and pvc.spec.resources.requests:
-                storage = pvc.spec.resources.requests.get("storage", "Unknown")
-
-            pvc_list.append(
-                {
-                    "name": pvc.metadata.name,
-                    "status": pvc.status.phase if pvc.status else "Unknown",
-                    "size": storage,
-                    "access_modes": list(pvc.spec.access_modes)
-                    if pvc.spec and pvc.spec.access_modes
-                    else [],
-                    "storage_class": pvc.spec.storage_class_name if pvc.spec else None,
-                }
-            )
-
-        return {
-            "namespace": namespace,
-            "count": len(pvc_list),
-            "pvcs": pvc_list,
-        }
-
-    @mcp.tool()
-    def delete_storage(
-        namespace: str,
-        pvc_name: str,
-        confirm: bool = False,
-    ) -> dict[str, Any]:
-        """Delete a storage PVC.
-
-        Permanently removes a PVC and its data. This action cannot
-        be undone.
-
-        Args:
-            namespace: The namespace containing the PVC.
-            pvc_name: Name of the PVC to delete.
-            confirm: Must be True to actually delete.
-
-        Returns:
-            Deletion confirmation.
-        """
-        # Check if operation is allowed
-        allowed, reason = server.config.is_operation_allowed("delete")
-        if not allowed:
-            return {"error": reason}
-
-        if not confirm:
-            return {
-                "error": "Deletion not confirmed",
-                "message": (
-                    f"To delete PVC '{pvc_name}', set confirm=True. "
-                    "WARNING: All data on this PVC will be lost."
-                ),
-            }
-
-        try:
-            server.k8s.delete_pvc(pvc_name, namespace)
-            return {
-                "success": True,
-                "deleted": True,
-                "pvc_name": pvc_name,
-                "namespace": namespace,
-                "message": f"PVC '{pvc_name}' has been deleted.",
-            }
-        except Exception as e:
-            return {"error": f"Failed to delete PVC: {e}"}
+    # Note: list_storage and delete_storage are in domains/storage/tools.py
+    # They are not registered here to avoid duplication.
 
 
 def _find_rwx_storage_class(k8s: Any) -> str | None:

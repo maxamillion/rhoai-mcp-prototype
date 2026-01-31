@@ -207,37 +207,41 @@ class TrainingPlugin(BasePlugin):
         return TrainingCRDs.all_crds()
 
 
-class SummaryPlugin(BasePlugin):
-    """Plugin for context-efficient cluster and project summaries.
+class PromptsPlugin(BasePlugin):
+    """Plugin for MCP workflow prompts.
 
-    Provides lightweight tools optimized for AI agent context windows,
-    offering compact overviews that reduce token usage significantly.
+    Provides prompts that guide AI agents through multi-step workflows
+    for training, exploration, troubleshooting, project setup, and
+    model deployment.
     """
 
     def __init__(self) -> None:
         super().__init__(
             PluginMetadata(
-                name="summary",
+                name="prompts",
                 version="1.0.0",
-                description="Context-efficient summary tools for AI agents",
+                description="MCP workflow prompts for RHOAI operations",
                 maintainer="rhoai-mcp@redhat.com",
                 requires_crds=[],
             )
         )
 
     @hookimpl
-    def rhoai_register_tools(self, mcp: FastMCP, server: RHOAIServer) -> None:
-        from rhoai_mcp.domains.summary.tools import register_tools
+    def rhoai_register_prompts(self, mcp: FastMCP, server: RHOAIServer) -> None:
+        from rhoai_mcp.domains.prompts.prompts import register_prompts
 
-        register_tools(mcp, server)
+        register_prompts(mcp, server)
 
     @hookimpl
     def rhoai_health_check(self, server: RHOAIServer) -> tuple[bool, str]:  # noqa: ARG002
-        return True, "Summary tools use core domain clients"
+        return True, "Prompts require no external dependencies"
 
 
 def get_core_plugins() -> list[BasePlugin]:
     """Return all core domain plugin instances.
+
+    Note: Composite plugins (cluster, training composites, meta) are
+    registered separately via rhoai_mcp.composites.registry.
 
     Returns:
         List of plugin instances for all core domains.
@@ -250,5 +254,5 @@ def get_core_plugins() -> list[BasePlugin]:
         ConnectionsPlugin(),
         StoragePlugin(),
         TrainingPlugin(),
-        SummaryPlugin(),
+        PromptsPlugin(),
     ]
